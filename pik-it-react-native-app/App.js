@@ -6,16 +6,21 @@ import CameraScreen from './screens/CameraScreen.js'; // Import du fichier Camer
 import AnnotatedImagePage from './screens/AnnotatedImagePage.js'; // Import du fichier AnnotatedImagePage
 
 function HomeScreen({ navigation }) {
+  // Liste d'objets à choisir au hasard
+  const objectsList = ["oven", "bottle", "chair"]; // Remplace par tes objets réels
+  const randomObject = objectsList[Math.floor(Math.random() * objectsList.length)];
+
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>Home Screen</Text>
+      <Text>Objet du jour : {randomObject}</Text>
       <Button
-        title="Go to Camera"
-        onPress={() => navigation.navigate('Camera')}
+        title="Aller à la prise de photo"
+        onPress={() => navigation.navigate('Camera', { objectToPhotograph: randomObject })}
       />
     </View>
   );
 }
+
 
 const Stack = createNativeStackNavigator();
 

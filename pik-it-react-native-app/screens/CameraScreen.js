@@ -11,7 +11,8 @@ import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import axios from "axios";
 
 
-export default function CameraScreen({ navigation }) {
+export default function CameraScreen({ route,navigation }) {
+  const { objectToPhotograph } = route.params;  // Récupère l'objet à photographier
   const { facing, setFacing } = useState < CameraType > "back";
   const [permission, requestPermission] = useCameraPermissions();
   const [isUploading, setIsUploading] = useState(false);
@@ -89,6 +90,7 @@ export default function CameraScreen({ navigation }) {
             navigation.navigate("AnnotatedImage", {
               imageUri: photo.uri,
               detections: response.data.detections,
+              objectToPhotograph: objectToPhotograph
             });
           },
         },
@@ -107,6 +109,7 @@ export default function CameraScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      
       <CameraView
         ref={cameraRef}
         style={styles.camera}
@@ -114,6 +117,7 @@ export default function CameraScreen({ navigation }) {
         ratio="4:3" 
         onCameraReady={() => console.log("Caméra prête")}
       >
+        <Text style={styles.objectName}>Objet à prendre en photo : {objectToPhotograph}</Text>
         <View style={styles.overlay}>
           <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
             <Text style={styles.buttonText}>Changer de caméra</Text>
@@ -149,6 +153,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-end",
     margin: 20,
+  },
+  objectName: {
+    color: "rgba(255, 255, 255, 1)",
   },
   button: {
     backgroundColor: "rgba(0, 0, 0, 0.7)",

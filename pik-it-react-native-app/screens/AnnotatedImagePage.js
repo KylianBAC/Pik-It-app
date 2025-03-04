@@ -11,8 +11,9 @@ import {
 import Svg, { Rect, Text as SvgText } from "react-native-svg";
 
 export default function AnnotatedImagePage({ route }) {
-  const { imageUri, detections } = route.params;
-
+  const { imageUri, detections, objectToPhotograph } = route.params;
+  console.log("1 : ", objectToPhotograph);
+  const [objectDetected, setObjectDetected] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({
     width: 1,
     height: 1,
@@ -40,15 +41,21 @@ export default function AnnotatedImagePage({ route }) {
       }
     );
   }, [imageUri]);
-
+  // Vérifie si l'objet du jour est détecté parmi les objets
+  useEffect(() => {
+    const objectFound = detections.some(
+      (detection) => detection.name === objectToPhotograph
+    );
+    console.log("2 : ",detections, "3 : ", objectToPhotograph);
+    setObjectDetected(objectFound);
+  }, [detections]);
+  const [highlightAll, setHighlightAll] = useState(false);
   const getScaledCoordinates = (box) => {
     const [x1, y1, x2, y2] = box;
     const scaleX = imageDimensions.displayWidth / 3059.5;
     const scaleY = imageDimensions.displayHeight / 4079.5;
 
-    return [
-      x1 * scaleX, y1 * scaleY, x2 * scaleX, y2 * scaleY
-    ];
+    return [x1 * scaleX, y1 * scaleY, x2 * scaleX, y2 * scaleY];
   };
 
   return (
@@ -71,40 +78,48 @@ export default function AnnotatedImagePage({ route }) {
             },
           ]}
         />
-        {imageDimensions.displayWidth > 1 && imageDimensions.displayHeight > 1 && (
-          <Svg
-            width={imageDimensions.displayWidth}
-            height={imageDimensions.displayHeight}
-            style={styles.svg}
-          >
-            {detections.map((detection, index) => {
-              const [scaledX1, scaledY1, scaledX2, scaledY2] = getScaledCoordinates(detection.box);
+        {/* Vérification de l'objet détecté */}
+        <Text style={styles.objectStatus}>
+          {objectDetected ? "Objet trouvé !" : "Objet non trouvé. Réessayez."}
+        </Text>
+        {imageDimensions.displayWidth > 1 &&
+          imageDimensions.displayHeight > 1 && (
+            <Svg
+              width={imageDimensions.displayWidth}
+              height={imageDimensions.displayHeight}
+              style={styles.svg}
+            >
+              {detections.map((detection, index) => {
+                const [scaledX1, scaledY1, scaledX2, scaledY2] =
+                  getScaledCoordinates(detection.box);
 
-              return (
-                <React.Fragment key={index}>
-                  <Rect
-                    x={scaledX1}
-                    y={scaledY1}
-                    width={scaledX2 - scaledX1}
-                    height={scaledY2 - scaledY1}
-                    stroke={selectedDetection === index ? "yellow" : "red"}
-                    strokeWidth={selectedDetection === index ? 4 : 2}
-                    fill="none"
-                  />
-                  <SvgText
-                    x={scaledX1}
-                    y={Math.max(scaledY1 - 5, 15)}
-                    fontSize="14"
-                    fill="red"
-                    fontWeight="bold"
-                  >
-                    {`${detection.name} (${(detection.score * 100).toFixed(1)}%)`}
-                  </SvgText>
-                </React.Fragment>
-              );
-            })}
-          </Svg>
-        )}
+                return (
+                  <React.Fragment key={index}>
+                    <Rect
+                      x={scaledX1}
+                      y={scaledY1}
+                      width={scaledX2 - scaledX1}
+                      height={scaledY2 - scaledY1}
+                      stroke={selectedDetection === index ? "yellow" : "red"}
+                      strokeWidth={selectedDetection === index ? 4 : 2}
+                      fill="none"
+                    />
+                    <SvgText
+                      x={scaledX1}
+                      y={Math.max(scaledY1 - 5, 15)}
+                      fontSize="14"
+                      fill="red"
+                      fontWeight="bold"
+                    >
+                      {`${detection.name} (${(detection.score * 100).toFixed(
+                        1
+                      )}%)`}
+                    </SvgText>
+                  </React.Fragment>
+                );
+              })}
+            </Svg>
+          )}
       </View>
 
       <Text style={styles.listTitle}>Objets détectés :</Text>
