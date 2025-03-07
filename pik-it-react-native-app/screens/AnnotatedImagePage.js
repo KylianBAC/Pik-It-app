@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
+  Button,
   StyleSheet,
   Image,
   Dimensions,
@@ -10,9 +11,9 @@ import {
 } from "react-native";
 import Svg, { Rect, Text as SvgText } from "react-native-svg";
 
-export default function AnnotatedImagePage({ route }) {
+export default function AnnotatedImagePage({ route, navigation }) {
   const { imageUri, detections, objectToPhotograph } = route.params;
-  console.log("1 : ", objectToPhotograph);
+  console.log("Objet à photographier : ", objectToPhotograph);
   const [objectDetected, setObjectDetected] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({
     width: 1,
@@ -22,6 +23,7 @@ export default function AnnotatedImagePage({ route }) {
   });
   const [selectedDetection, setSelectedDetection] = useState(null);
   const screenWidth = Dimensions.get("window").width;
+  const [showDetections, setShowDetections] = useState(false);
 
   useEffect(() => {
     Image.getSize(
@@ -46,7 +48,6 @@ export default function AnnotatedImagePage({ route }) {
     const objectFound = detections.some(
       (detection) => detection.name === objectToPhotograph
     );
-    console.log("2 : ",detections, "3 : ", objectToPhotograph);
     setObjectDetected(objectFound);
   }, [detections]);
   const [highlightAll, setHighlightAll] = useState(false);
@@ -78,10 +79,7 @@ export default function AnnotatedImagePage({ route }) {
             },
           ]}
         />
-        {/* Vérification de l'objet détecté */}
-        <Text style={styles.objectStatus}>
-          {objectDetected ? "Objet trouvé !" : "Objet non trouvé. Réessayez."}
-        </Text>
+
         {imageDimensions.displayWidth > 1 &&
           imageDimensions.displayHeight > 1 && (
             <Svg
@@ -92,7 +90,8 @@ export default function AnnotatedImagePage({ route }) {
               {detections.map((detection, index) => {
                 const [scaledX1, scaledY1, scaledX2, scaledY2] =
                   getScaledCoordinates(detection.box);
-
+                // Vérifier si c'est l'objet que l'utilisateur doit photographier
+                const isTargetObject = detection.name === objectToPhotograph;
                 return (
                   <React.Fragment key={index}>
                     <Rect
@@ -100,8 +99,16 @@ export default function AnnotatedImagePage({ route }) {
                       y={scaledY1}
                       width={scaledX2 - scaledX1}
                       height={scaledY2 - scaledY1}
-                      stroke={selectedDetection === index ? "yellow" : "red"}
-                      strokeWidth={selectedDetection === index ? 4 : 2}
+                      stroke={
+                        isTargetObject
+                          ? "green"
+                          : selectedDetection === index
+                          ? "yellow"
+                          : "red"
+                      }
+                      strokeWidth={
+                        isTargetObject ? 4 : selectedDetection === index ? 4 : 2
+                      }
                       fill="none"
                     />
                     <SvgText
@@ -121,28 +128,51 @@ export default function AnnotatedImagePage({ route }) {
             </Svg>
           )}
       </View>
-
-      <Text style={styles.listTitle}>Objets détectés :</Text>
-
-      <FlatList
-        data={detections}
-        keyExtractor={(item) => item.name + item.score}
-        renderItem={({ item, index }) => (
-          <TouchableOpacity onPress={() => setSelectedDetection(index)}>
-            <View
-              style={[
-                styles.listItem,
-                selectedDetection === index && styles.selectedItem,
-              ]}
-            >
-              <Text style={styles.objectName}>{item.name}</Text>
-              <Text style={styles.probability}>
-                {(item.score * 100).toFixed(1)}%
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
+      {/* Vérification de l'objet détecté */}
+      {objectDetected ? (
+        <Text style={{ color: "green", fontSize: 11 }}>
+          ✅ Bravo ! {objectToPhotograph} détecté !
+        </Text>
+      ) : (
+        <>
+          <Text style={{ color: "red", fontSize: 11 }}>
+            ❌ {objectToPhotograph} non détecté.
+          </Text>
+          <Button title="Réessayer" onPress={() => navigation.goBack()} />
+        </>
+      )}
+      {/* Bouton pour afficher/masquer la liste */}
+      <Button
+        title={
+          showDetections
+            ? "Masquer les objets détectés"
+            : "Voir les objets détectés"
+        }
+        onPress={() => setShowDetections(!showDetections)}
       />
+
+      {/* Affichage conditionnel de la liste */}
+      {showDetections && (
+        <FlatList
+          data={detections}
+          keyExtractor={(item) => item.name + item.score}
+          renderItem={({ item, index }) => (
+            <TouchableOpacity onPress={() => setSelectedDetection(index)}>
+              <View
+                style={[
+                  styles.listItem,
+                  selectedDetection === index && styles.selectedItem,
+                ]}
+              >
+                <Text style={styles.objectName}>{item.name}</Text>
+                <Text style={styles.probability}>
+                  {(item.score * 100).toFixed(1)}%
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </View>
   );
 }
