@@ -1,0 +1,8 @@
+{
+    "scripts": {
+      "start": "npm run start pikit",
+      "start-backend": "node server.js",
+      "start-frontend": "react-native start"
+    }
+  }
+  
