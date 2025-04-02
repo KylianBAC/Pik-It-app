@@ -5,3 +5,5 @@ ultralytics==8.3.93
 Pillow==11.1.0
 numpy==2.0.2
 matplotlib==3.10.1  # Optionnel, pour le mode debug
+Flask-JWT-Extended==4.7.1
+python-dotenv==1.1.0  # Pour gérer les variables d'environnement
