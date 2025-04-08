@@ -1,6 +1,9 @@
 from ultralytics import YOLO
 from PIL import Image
 import numpy as np
+import os
+from werkzeug.utils import secure_filename
+
 
 # Charger le modèle YOLO
 model = YOLO("yolo11x.pt")  # Modèle pré-entraîné

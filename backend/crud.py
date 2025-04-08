@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from .models import User, Quest, Photo, Game, GameObject, Friend, Reward
+from .models import User, Quest, Photo, Game, GameObject, Friend, Reward, Detection
 
 # Utilisateurs
 def create_user(db: Session, username: str, email: str, password_hash: str):
@@ -24,12 +24,26 @@ def create_quest(db: Session, name: str, description: str, object_to_find: str, 
     return quest
 
 # Photos
-def create_photo(db: Session, user_id: int, quest_id: int, photo_url: str):
-    photo = Photo(user_id=user_id, quest_id=quest_id, photo_url=photo_url)
+def create_photo(db: Session, user_id: int, image_url: str):
+    photo = Photo(user_id=user_id, image_url=image_url)
     db.add(photo)
     db.commit()
     db.refresh(photo)
     return photo
+
+# Detections
+def create_detection(db: Session, photo_id: int, object_name: str, confidence: float, bbox: dict,
+                     challenge_object: str, is_challenge_object: bool):
+    detection = Detection(photo_id=photo_id,
+                          object_name=object_name,
+                          confidence=confidence,
+                          bbox=bbox,
+                          challenge_object=challenge_object,
+                          is_challenge_object=is_challenge_object)
+    db.add(detection)
+    db.commit()
+    db.refresh(detection)
+    return detection
 
 # Parties de jeu
 def create_game(db: Session, creator_id: int):

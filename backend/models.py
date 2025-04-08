@@ -22,12 +22,22 @@ class Quest(db.Model):
 class Photo(db.Model):
     __tablename__ = "photos"
     id = db.Column(db.Integer, primary_key=True, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    quest_id = db.Column(db.Integer, db.ForeignKey("quests.id"))
-    photo_url = db.Column(db.String)
-    is_validated = db.Column(db.Boolean, default=False)
-    validation_result = db.Column(db.JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    image_url = db.Column(db.Text, nullable=False)  # Nouvelle colonne pour le chemin de l'image
+    upload_date = db.Column(db.DateTime, server_default=db.func.now())  # Date d'upload
+    is_analysed = db.Column(db.Boolean, default=False)  # Indique si la photo a été analysée par l'IA
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+class Detection(db.Model):
+    __tablename__ = "detections"
+    id = db.Column(db.Integer, primary_key=True, index=True)
+    photo_id = db.Column(db.Integer, db.ForeignKey("photos.id", ondelete="CASCADE"))
+    object_name = db.Column(db.String(100))  # ex: "pomme", "chaise"
+    confidence = db.Column(db.Float)         # Score de confiance entre 0.0 et 1.0
+    bbox = db.Column(db.JSON)                 # Coordonnées sous la forme [x1, y1, x2, y2]
+    challenge_object = db.Column(db.String(100))  # L'objet du défi
+    is_challenge_object = db.Column(db.Boolean, default=False)  # True si correspond au défi du jour
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 class Game(db.Model):
     __tablename__ = "games"
