@@ -36,6 +36,7 @@ class Detection(db.Model):
     object_name = db.Column(db.String(100))  # ex: "pomme", "chaise"
     confidence = db.Column(db.Float)         # Score de confiance entre 0.0 et 1.0
     bbox = db.Column(db.JSON)                 # Coordonnées sous la forme [x1, y1, x2, y2]
+    challenge_id = db.Column(db.Integer, db.ForeignKey("quests.id", ondelete="CASCADE"), nullable=True)
     challenge_object = db.Column(db.String(100))  # L'objet du défi
     is_challenge_object = db.Column(db.Boolean, default=False)  # True si correspond au défi du jour
     created_at = db.Column(db.DateTime, server_default=db.func.now())
@@ -68,4 +69,5 @@ class Reward(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     reward_type = db.Column(db.String)
     reward_value = db.Column(db.String)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("quests.id", ondelete="CASCADE"), nullable=True)  # Nouveau champ
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

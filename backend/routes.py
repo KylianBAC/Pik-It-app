@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 from .crud import (
     get_user, get_user_by_username, create_user,
-    get_all_quests, get_quest_by_date,
+    get_all_quests, get_quest_by_date, get_quest_by_id,
     create_photo, get_photos_by_user, get_photo_by_id,
     get_detections_by_photo_id,
     create_game, get_game, add_game_object,
@@ -104,7 +104,21 @@ def create_routes(app):
         }
         return jsonify(quest_data), 200
 
+    @app.route('/quests/id/<int:quest_id>', methods=['GET'])
+    def fetch_quest_by_id(quest_id):
+        quest = get_quest_by_id(quest_id)
+        if not quest:
+            return jsonify({"message": "Aucune quête trouvée pour cet ID."}), 404
 
+        quest_data = {
+            "id": quest.id,
+            "name": quest.name,
+            "description": quest.description,
+            "object_to_find": quest.object_to_find,
+            "reward_points": quest.reward_points,
+            "quest_date": quest.quest_date.isoformat()
+        }
+        return jsonify(quest_data), 200
 
     @app.route('/games/<int:game_id>', methods=['GET'])
     def get_game_route(game_id):
@@ -217,7 +231,6 @@ def create_routes(app):
     def detect_and_save_photo():
         current_user_id = get_jwt_identity()
 
-        # Vérifier la présence du fichier dans la requête
         if 'file' not in request.files:
             return jsonify({"error": "Aucun fichier envoyé"}), 400
 
@@ -225,37 +238,39 @@ def create_routes(app):
         if file.filename == "":
             return jsonify({"error": "Nom de fichier vide"}), 400
 
-        # Sécuriser et sauvegarder le fichier dans static/uploads
         filename = secure_filename(file.filename)
         uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
         os.makedirs(uploads_dir, exist_ok=True)
         file_path = os.path.join(uploads_dir, filename)
         file.save(file_path)
 
-        # Construire l'URL qui sera stockée dans la BDD
         file_url = f"/static/uploads/{filename}"
-
-        # Charger l'image avec PIL pour la détection
         image = Image.open(file_path).convert('RGB')
 
-        # Créer un enregistrement pour la photo dans la table "photos"
         photo = create_photo(db.session, file_path=file_url, user_id=current_user_id, is_analysed=True)
 
-        # Utiliser la fonction de détection pour analyser l'image
         detections = detect_objects(image)
 
-        # Optionnel : récupérer le paramètre "challenge_object" (par exemple en form-data ou JSON)
-        # S'il n'est pas fourni, vous pouvez le laisser vide ou définir une valeur par défaut.
-        challenge_object = request.form.get("challenge_object", "")
+        challenge_id = request.form.get("challenge_id")
+        challenge_object = None
+ 
+        if challenge_id is not None:
+            try:
+                challenge_id = int(challenge_id)
+            except ValueError:
+                return jsonify({"error": "challenge_id doit être un entier"}), 400
 
-        # Pour chaque détection, créer une entrée dans la table "detections"
+            # Requête interne pour récupérer le challenge via son ID
+            with current_app.test_client() as client:
+                response = client.get(f"/quests/id/{challenge_id}")
+                if response.status_code != 200:
+                    return jsonify({"error": "Challenge introuvable"}), 404
+                challenge_data = response.get_json()
+                challenge_object = challenge_data.get("object_to_find")
+
         detection_entries = []
         for det in detections:
-            # Ici, on utilise :
-            # - le nom de l'objet détecté (det["name"])
-            # - le score de confiance (det["score"])
-            # - la bounding box (det["box"])
-            # Pour challenge_object et is_challenge_object, vous pouvez adapter selon votre logique.
+            is_challenge = challenge_object and det["name"].lower() == challenge_object.lower()
             entry = create_detection(
                 db.session,
                 photo_id=photo.id,
@@ -263,7 +278,8 @@ def create_routes(app):
                 confidence=det["score"],
                 bbox={"box": det["box"]},
                 challenge_object=challenge_object,
-                is_challenge_object=(det["name"].lower() == challenge_object.lower() if challenge_object else False)
+                is_challenge_object=is_challenge,
+                challenge_id=challenge_id
             )
             detection_entries.append({
                 "id": entry.id,
@@ -271,14 +287,67 @@ def create_routes(app):
                 "confidence": entry.confidence,
                 "bbox": entry.bbox,
                 "challenge_object": entry.challenge_object,
-                "is_challenge_object": entry.is_challenge_object
+                "is_challenge_object": entry.is_challenge_object,
+                "challenge_id": entry.challenge_id
             })
-
-        # Retourne l'enregistrement de la photo et la liste des détections créées
         return jsonify({
             "photo": {"id": photo.id, "file_path": photo.file_path},
             "detections": detection_entries
         }), 201
+
+
+# Complete a quest
+    @app.route('/quests/complete', methods=['POST'])
+    @jwt_required()
+    def complete_challenge():
+        data = request.get_json()
+        # On attend par exemple un payload JSON contenant :
+        # - "photo_id" : l'identifiant de la photo du challenge
+        # - "challenge_id": l'id de la quête à compléter
+        # - éventuellement d'autres éléments de vérification
+        photo_id = data.get("photo_id")
+        challenge_id = data.get("challenge_id")
+        user_id = get_jwt_identity()
+
+        if not photo_id or not challenge_id:
+            return jsonify({"error": "photo_id et challenge_id sont requis"}), 400
+        else :
+            # Requête interne pour récupérer le challenge via son ID
+            with current_app.test_client() as client:
+                response = client.get(f"/quests/id/{challenge_id}")
+                if response.status_code != 200:
+                    return jsonify({"error": "Challenge introuvable"}), 404
+                challenge_data = response.get_json()
+                challenge_name = challenge_data.get("name")
+                reward_points = challenge_data.get("reward_points")
+        # Ici, vous devez ajouter la logique pour vérifier que la photo contient bien
+        # la détection attendue par la quête (par exemple, en consultant les détections)
+        detections = get_detections_by_photo_id(photo_id)
+        # Vous pouvez ajouter la logique de validation, par exemple :
+        valid = False
+        for d in detections:
+            if d.challenge_id == challenge_id and d.is_challenge_object:
+                valid = True
+                break
+
+        if not valid:
+            return jsonify({"error": "Challenge non complété ou détection non valide"}), 400
+
+    
+        # Si le challenge est complété, vous attribuez la récompense
+        reward = add_reward(db.session, user_id, reward_type=challenge_name, reward_value=reward_points, challenge_id=challenge_id)
+
+        # Vous pouvez aussi mettre à jour le statut de la photo ou de la quête si besoin
+        return jsonify({
+            "message": "Challenge complété avec succès",
+            "reward": {
+                "id": reward.id,
+                "reward_type": reward.reward_type,
+                "reward_value": reward.reward_value,
+                "challenge_id": reward.challenge_id
+            }
+        }), 200
+
 
 # Get user photos
     @app.route('/photos/me', methods=['GET'])
