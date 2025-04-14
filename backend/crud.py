@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from .models import User, Quest, Photo, Game, GameObject, Friend, Reward, Detection
+from datetime import date
 
 # Utilisateurs
 def create_user(db: Session, username: str, email: str, password_hash: str):
@@ -16,20 +17,25 @@ def get_user_by_username(db: Session, username: str):
     return db.query(User).filter(User.username == username).first()
 
 # Quêtes
-def create_quest(db: Session, name: str, description: str, object_to_find: str, reward_points: int):
-    quest = Quest(name=name, description=description, object_to_find=object_to_find, reward_points=reward_points)
-    db.add(quest)
-    db.commit()
-    db.refresh(quest)
-    return quest
+def get_all_quests():
+    return Quest.query.order_by(Quest.quest_date.desc()).all()
+
+def get_quest_by_date(target_date: date):
+    return Quest.query.filter_by(quest_date=target_date).first()
 
 # Photos
-def create_photo(db: Session, user_id: int, image_url: str):
-    photo = Photo(user_id=user_id, image_url=image_url)
+def create_photo(db: Session, user_id: int, file_path: str, is_analysed: bool):
+    photo = Photo(user_id=user_id, file_path=file_path, is_analysed=is_analysed)
     db.add(photo)
     db.commit()
     db.refresh(photo)
     return photo
+
+def get_photos_by_user(user_id: int):
+    return Photo.query.filter_by(user_id=user_id).order_by(Photo.upload_date.desc()).all()
+
+def get_photo_by_id(photo_id: int, user_id: int):
+    return Photo.query.filter_by(id=photo_id, user_id=user_id).first()
 
 # Detections
 def create_detection(db: Session, photo_id: int, object_name: str, confidence: float, bbox: dict,
@@ -44,6 +50,9 @@ def create_detection(db: Session, photo_id: int, object_name: str, confidence: f
     db.commit()
     db.refresh(detection)
     return detection
+
+def get_detections_by_photo_id(photo_id: int):
+    return Detection.query.filter_by(photo_id=photo_id).all()
 
 # Parties de jeu
 def create_game(db: Session, creator_id: int):

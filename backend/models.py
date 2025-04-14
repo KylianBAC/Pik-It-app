@@ -17,14 +17,15 @@ class Quest(db.Model):
     description = db.Column(db.String)
     object_to_find = db.Column(db.String)
     reward_points = db.Column(db.Integer)
+    quest_date = db.Column(db.Date, unique=True) 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Photo(db.Model):
     __tablename__ = "photos"
     id = db.Column(db.Integer, primary_key=True, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
-    image_url = db.Column(db.Text, nullable=False)  # Nouvelle colonne pour le chemin de l'image
-    upload_date = db.Column(db.DateTime, server_default=db.func.now())  # Date d'upload
+    file_path = db.Column(db.Text, nullable=False) 
+    upload_date = db.Column(db.DateTime, server_default=db.func.now()) 
     is_analysed = db.Column(db.Boolean, default=False)  # Indique si la photo a été analysée par l'IA
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
