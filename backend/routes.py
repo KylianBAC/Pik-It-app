@@ -14,7 +14,8 @@ from .crud import (
     get_detections_by_photo_id,
     create_game, get_game, add_game_object,
     add_friend, get_friends,
-    add_reward, get_rewards, create_detection
+    add_reward, get_rewards, create_detection,
+    create_annotation, get_annotations_by_user, get_annotations_by_photo
 )
 from .daily_quest_creation import create_daily_quest
 from .utils import detect_objects
@@ -222,7 +223,7 @@ def create_routes(app):
         file_url = f"/static/uploads/{filename}"
 
         # Sauvegarde en BDD de l'URL de la photo (image_url)
-        photo = create_photo(db.session, file_path=file_url, user_id=current_user_id)
+        photo = create_photo(db.session, file_path=file_url, user_id=current_user_id, is_analysed=False)
         return jsonify({"id": photo.id, "file_path": photo.file_path}), 201
 
 # Upload and detect photo
@@ -295,6 +296,95 @@ def create_routes(app):
             "detections": detection_entries
         }), 201
 
+    @app.route('/annotations/submit', methods=['POST'])
+    @jwt_required()
+    def submit_annotation():
+        data = request.get_json()
+        user_id = get_jwt_identity()
+
+        photo_id = data.get("photo_id")
+        object_name = data.get("object_name")
+        bbox = data.get("bbox")            # on attend un dict { "box": [x1, y1, x2, y2] }
+        challenge_id = data.get("challenge_id")
+
+        # Vérifications basiques
+        if not photo_id or not object_name or not bbox:
+            return jsonify({"error": "photo_id, object_name et bbox sont requis"}), 400
+
+        # Vérifier que bbox["box"] est une liste de 4 valeurs
+        box = bbox.get("box")
+        if not isinstance(box, list) or len(box) != 4:
+            return jsonify({"error": "bbox doit contenir une clé 'box' avec 4 valeurs [x1,y1,x2,y2]"}), 400
+
+        try:
+            ann = create_annotation(
+                db.session,
+                photo_id=photo_id,
+                user_id=user_id,
+                object_name=object_name,
+                bbox=bbox,              # on passe directement { "box": [...] }
+                challenge_id=challenge_id
+            )
+        except Exception as e:
+            return jsonify({"error": "Erreur lors de la création de l'annotation : " + str(e)}), 500
+
+        return jsonify({
+            "id": ann.id,
+            "photo_id": ann.photo_id,
+            "object_name": ann.object_name,
+            "bbox": ann.bbox,
+            "challenge_id": ann.challenge_id,
+            "created_at": ann.created_at.isoformat()
+        }), 201
+    
+# Get les annotations de l'utilisateur
+    @app.route('/annotations', methods=['GET'])
+    @jwt_required()
+    def get_user_annotations():
+        current_user_id = get_jwt_identity()
+        annotations = get_annotations_by_user(db.session, user_id=current_user_id)
+
+        result = []
+        for ann in annotations:
+            result.append({
+                "id": ann.id,
+                "photo_id": ann.photo_id,
+                "object_name": ann.object_name,
+                "bbox": ann.bbox,
+                "challenge_id": ann.challenge_id,
+                "created_at": ann.created_at.isoformat()
+            })
+
+        # Vérification basique
+        if not result:
+            return jsonify({"Aucun résultat": "Aucun résultat pour cet utilisateur"}), 200
+        
+        return jsonify(result), 200
+
+# Get les annotations de l'utilisateur pour une photo précise
+    @app.route('/annotations/<int:photo_id>', methods=['GET'])
+    @jwt_required()
+    def get_annotations_for_photo(photo_id):
+        current_user_id = get_jwt_identity()
+        annotations = get_annotations_by_photo(db.session, user_id=current_user_id, photo_id=photo_id)
+
+        result = []
+        for ann in annotations:
+            result.append({
+                "id": ann.id,
+                "photo_id": ann.photo_id,
+                "object_name": ann.object_name,
+                "bbox": ann.bbox,
+                "challenge_id": ann.challenge_id,
+                "created_at": ann.created_at.isoformat()
+            })
+
+         # Vérifications basiques
+        if not result:
+            return jsonify({"Aucun résultat": "Aucun résultat pour cet utilisateur avec cette photo"}), 200
+        
+        
+        return jsonify(result), 200
 
 # Complete a quest
     @app.route('/quests/complete', methods=['POST'])

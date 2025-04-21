@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from .models import User, Quest, Photo, Game, GameObject, Friend, Reward, Detection
+from .models import User, Quest, Photo, Game, GameObject, Friend, Reward, Detection, TrainingAnnotation
 from datetime import date
 
 # Utilisateurs
@@ -128,3 +128,24 @@ def add_reward(db: Session, user_id: int, reward_type: str, reward_value: str, c
 
 def get_rewards(db: Session, user_id: int):
     return db.query(Reward).filter(Reward.user_id == user_id).all()
+
+# Entrainement de l'IA (annotations)
+def create_annotation(db: Session, photo_id: int, user_id: int,
+                      object_name: str, bbox: dict, challenge_id: int = None):
+    ann = TrainingAnnotation(
+        photo_id=photo_id,
+        user_id=user_id,
+        challenge_id=challenge_id,
+        object_name=object_name,
+        bbox=bbox
+    )
+    db.add(ann)
+    db.commit()
+    db.refresh(ann)
+    return ann
+
+def get_annotations_by_user(db: Session, user_id: int):
+    return db.query(TrainingAnnotation).filter_by(user_id=user_id).all()
+
+def get_annotations_by_photo(db: Session, user_id: int, photo_id: int):
+    return db.query(TrainingAnnotation).filter_by(user_id=user_id, photo_id=photo_id).all()

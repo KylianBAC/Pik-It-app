@@ -41,6 +41,18 @@ class Detection(db.Model):
     is_challenge_object = db.Column(db.Boolean, default=False)  # True si correspond au défi du jour
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
+class TrainingAnnotation(db.Model):
+    __tablename__ = "training_annotations"
+    id = db.Column(db.Integer, primary_key=True, index=True)
+    photo_id = db.Column(db.Integer, db.ForeignKey("photos.id", ondelete="CASCADE"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("quests.id", ondelete="SET NULL"), nullable=True)
+    object_name = db.Column(db.String(100), nullable=False)
+    bbox = db.Column(db.JSON, nullable=False)  # e.g. {"x1":.., "y1":.., "x2":.., "y2":..}
+    validated = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+
 class Game(db.Model):
     __tablename__ = "games"
     id = db.Column(db.Integer, primary_key=True, index=True)
