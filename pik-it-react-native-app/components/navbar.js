@@ -24,7 +24,7 @@ const NavBar = ({ onAddPress }) => {
         <Search size={24} color="gray" />
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate('Profile') }>
+      <TouchableOpacity onPress={() => navigation.navigate('ProfileScreen') }>
         <User size={24} color="gray" />
       </TouchableOpacity>
     </View>

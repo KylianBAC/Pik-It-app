@@ -35,7 +35,7 @@ const ProfileScreen = ({ navigation }) => {
                 <View key={i} style={[styles.orangeCircle, { width: size*6, height: size*6 }]} />
               ))}
             </View>
-            <TouchableOpacity style={styles.settingsBtn}>
+            <TouchableOpacity style={styles.settingsBtn} onPress={() => navigation.navigate('SettingsScreen')}>
               <Settings size={20} />
             </TouchableOpacity>
           </View>

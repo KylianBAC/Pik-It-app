@@ -1,30 +1,67 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, FlatList, Dimensions } from 'react-native';
 import { X, Check } from 'lucide-react-native';
 import NavBar from '../components/navbar';
+import { apiClient } from '../api/auth';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const PikitHome = ({ navigation }) => {
-  const dailyObject = '---'; // TODO: récupérer depuis le state ou le backend
-  const timeLeft = '01:33:21'; // TODO: timer dynamique
+const HomeScreen = ({ navigation }) => {
+  const [dailyQuest, setDailyQuest] = useState(null);
+  const [timeLeft, setTimeLeft] = useState('00:00:00');
+
+  // Fetch daily quest from backend
+  useEffect(() => {
+    (async () => {
+      try {
+        const dateStr = new Date().toISOString().split('T')[0];
+        console.log(dateStr);
+        const client = await apiClient();
+        const response = await client.get(`/quests/${dateStr}`);
+        setDailyQuest(response.data);
+      } catch (error) {
+        console.error('Erreur fetch daily quest:', error);
+      }
+    })();
+  }, []);
+
+  // Countdown to midnight
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date();
+      const next = new Date(now);
+      next.setDate(now.getDate() + 1);
+      next.setHours(0, 0, 0, 0);
+      const diff = next - now;
+      const hrs = String(Math.floor(diff / 3600000)).padStart(2, '0');
+      const mins = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
+      const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+      setTimeLeft(`${hrs}:${mins}:${secs}`);
+    };
+    updateTimer();
+    const id = setInterval(updateTimer, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const dailyObject = dailyQuest?.object_to_find || '---';
+  const questId = dailyQuest?.id;
 
   const renderRewardDay = (day, pts, status) => {
-    const isActive = status === 'active';
-    const isDone = status === 'done';
+    const active = status === 'active';
+    const done = status === 'done';
     return (
       <View style={styles.rewardItem} key={day}>
-        <View style={[styles.rewardBox, isActive && styles.activeRewardBox]}>          
+        <View style={[styles.rewardBox, active && styles.activeRewardBox]}>          
           <View style={styles.rewardCircle}>
-            <Text style={[styles.rewardText, isActive && styles.activeRewardText]}>{pts}pt</Text>
+            <Text style={[styles.rewardText, active && styles.activeRewardText]}>{pts}pt</Text>
           </View>
-          {isDone && (
+          {done && (
             <View style={styles.rewardCheck}>
               <Check size={12} color="white" />
             </View>
           )}
         </View>
-        <Text style={[styles.rewardLabel, isActive && styles.activeRewardLabel]}>Jour {day}</Text>
+        <Text style={[styles.rewardLabel, active && styles.activeRewardLabel]}>Jour {day}</Text>
       </View>
     );
   };
@@ -63,7 +100,13 @@ const PikitHome = ({ navigation }) => {
             </View>
             <View style={styles.progressBarBg}><View style={[styles.progressBarFg, { width: '8%' }]} /></View>
           </View>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('Camera', { objectToPhotograph: dailyObject })}>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => navigation.navigate('Camera', {
+              objectToPhotograph: dailyObject,
+              challengeId: questId
+            })}
+          >
             <Text style={styles.primaryButtonText}>Commencer</Text>
           </TouchableOpacity>
         </View>
@@ -109,8 +152,8 @@ const PikitHome = ({ navigation }) => {
         />
       </View>
 
-      {/* Utilisation du nouveau NavBar component */}
-      <NavBar onAddPress={() => navigation.navigate('Camera', { objectToPhotograph: dailyObject })} />
+      {/* Navigation bar */}
+      <NavBar onAddPress={() => navigation.navigate('Camera', { objectToPhotograph: dailyObject, challengeId: questId })} />
     </View>
   );
 };
@@ -159,4 +202,4 @@ const styles = StyleSheet.create({
   postImage: { width: '100%', height: 160, backgroundColor: '#ccc' },
 });
 
-export default PikitHome;
+export default HomeScreen;
