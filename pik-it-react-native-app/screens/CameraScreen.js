@@ -8,23 +8,18 @@ import {
   Alert,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
+import { apiClient, getToken } from "../api/auth";
 import axios from "axios";
 
-
-export default function CameraScreen({ route,navigation }) {
-  const { objectToPhotograph } = route.params;  // Récupère l'objet à photographier
-  const { facing, setFacing } = useState < CameraType > "back";
+export default function CameraScreen({ route, navigation }) {
+  const { objectToPhotograph, challengeId } = route.params;
+  // const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [isUploading, setIsUploading] = useState(false);
   const cameraRef = useRef(null);
 
-  if (!permission) {
-    // Les permissions de la caméra sont en cours de chargement
-    return <View />;
-  }
-
+  if (!permission) return <View />;
   if (!permission.granted) {
-    // Les permissions de la caméra ne sont pas encore accordées
     return (
       <View style={styles.container}>
         <Text style={styles.message}>
@@ -37,70 +32,54 @@ export default function CameraScreen({ route,navigation }) {
     );
   }
 
-  // Fonction pour basculer entre les caméras avant et arrière
-  function toggleCameraFacing() {
-    setFacing((current) => (current === "back" ? "front" : "back"));
-  }
+  // function toggleCameraFacing() {
+  //   setFacing((current) =>
+  //     current === CameraType.back ? CameraType.front : CameraType.back
+  //   );
+  // }
 
-  // Fonction pour capturer une photo
   async function takePhoto() {
-    if (cameraRef.current) {
-      try {
-        const photo = await cameraRef.current.takePictureAsync({
-          base64: true,
-        });
-
-        // Envoi de l'image à l'API
-        uploadPhoto(photo);
-      } catch (error) {
-        console.error("Erreur lors de la prise de photo :", error);
-        Alert.alert(
-          "Erreur",
-          "Une erreur s'est produite lors de la prise de la photo."
-        );
-      }
+    if (!cameraRef.current) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ base64: false });
+      uploadPhoto(photo);
+    } catch (error) {
+      console.error("Erreur lors de la prise de photo :", error);
+      Alert.alert(
+        "Erreur",
+        "Une erreur s'est produite lors de la prise de la photo."
+      );
     }
   }
 
-  // Fonction pour envoyer la photo à l'API
   async function uploadPhoto(photo) {
     setIsUploading(true);
-
-    const apiUrl = "http://192.168.1.123:5000/detect"; // Remplacez par l'URL de votre API
-    const formData = new FormData();
-
-    formData.append("file", {
-      uri: photo.uri,
-      name: `photo.jpg`,
-      type: `image/jpeg`,
-    });
-
     try {
-      const response = await axios.post(apiUrl, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+      const client = await apiClient();
+      const formData = new FormData();
+      formData.append("file", {
+        uri: photo.uri,
+        name: "photo.jpg",
+        type: "image/jpeg",
       });
-
-      Alert.alert("Succès", "Photo envoyée avec succès !", [
-        {
-          text: "OK",
-          onPress: () => {
-            // Naviguer vers la page de l'image annotée avec les résultats
-            navigation.navigate("AnnotatedImage", {
-              imageUri: photo.uri,
-              detections: response.data.detections,
-              objectToPhotograph: objectToPhotograph
-            });
-          },
-        },
-      ]);
-      console.log("Réponse de l'API :", response.data.detections);
+      if (challengeId) {
+        formData.append("challenge_id", String(challengeId));
+      }
+      const response = await client.post(
+        "/photos/detect",
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      navigation.navigate("AnnotatedImage", {
+        imageUri: photo.uri,
+        detections: response.data.detections,
+        objectToPhotograph,
+      });
     } catch (error) {
       console.error("Erreur lors de l'envoi de la photo :", error);
       Alert.alert(
         "Erreur",
-        "Une erreur s'est produite lors de l'envoi de la photo."
+        error.response?.data?.error || "Une erreur s'est produite lors de l'envoi de la photo."
       );
     } finally {
       setIsUploading(false);
@@ -109,20 +88,21 @@ export default function CameraScreen({ route,navigation }) {
 
   return (
     <View style={styles.container}>
-      
       <CameraView
         ref={cameraRef}
         style={styles.camera}
-        facing={facing}
-        ratio="4:3" 
+        // type={facing}
+        ratio="4:3"
         onCameraReady={() => console.log("Caméra prête")}
       >
-        <Text style={styles.objectName}>Objet à prendre en photo : {objectToPhotograph}</Text>
-        <View style={styles.overlay}>
+        <Text style={styles.objectName}>
+          Objet à prendre en photo : {objectToPhotograph}
+        </Text>
+        {/* <View style={styles.overlay}>
           <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
             <Text style={styles.buttonText}>Changer de caméra</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
       </CameraView>
 
       <View style={styles.controls}>
@@ -144,9 +124,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#000",
   },
-  camera: {
-    flex: 1,
-  },
+  camera: { flex: 1 },
   overlay: {
     flex: 1,
     flexDirection: "row",

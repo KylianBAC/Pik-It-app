@@ -13,7 +13,7 @@ import Svg, { Rect, Text as SvgText } from "react-native-svg";
 
 export default function AnnotatedImagePage({ route, navigation }) {
   const { imageUri, detections, objectToPhotograph } = route.params;
-  console.log("Objet à photographier : ", objectToPhotograph);
+
   const [objectDetected, setObjectDetected] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({
     width: 1,
@@ -30,7 +30,6 @@ export default function AnnotatedImagePage({ route, navigation }) {
       imageUri,
       (width, height) => {
         const scaledHeight = (screenWidth / width) * height;
-
         setImageDimensions({
           width,
           height,
@@ -38,24 +37,25 @@ export default function AnnotatedImagePage({ route, navigation }) {
           displayHeight: scaledHeight,
         });
       },
-      (error) => {
-        console.error("Erreur lors du chargement de l’image :", error);
-      }
+      (error) => console.error("Erreur lors du chargement de l'image :", error)
     );
   }, [imageUri]);
+
   // Vérifie si l'objet du jour est détecté parmi les objets
   useEffect(() => {
-    const objectFound = detections.some(
-      (detection) => detection.name === objectToPhotograph
+    const found = detections.some(
+      (d) => d.object_name === objectToPhotograph
     );
-    setObjectDetected(objectFound);
-  }, [detections]);
-  const [highlightAll, setHighlightAll] = useState(false);
-  const getScaledCoordinates = (box) => {
-    const [x1, y1, x2, y2] = box;
-    const scaleX = imageDimensions.displayWidth / 3059.5;
-    const scaleY = imageDimensions.displayHeight / 4079.5;
+    setObjectDetected(found);
+  }, [detections, objectToPhotograph]);
 
+  const getScaledCoordinates = (box) => {
+    // box = [x1, y1, x2, y2]
+    console.log(imageDimensions.width);
+    console.log(imageDimensions.height);
+    const scaleX = imageDimensions.displayWidth / 3060;
+    const scaleY = imageDimensions.displayHeight / 4048;
+    const [x1, y1, x2, y2] = box;
     return [x1 * scaleX, y1 * scaleY, x2 * scaleX, y2 * scaleY];
   };
 
@@ -88,39 +88,37 @@ export default function AnnotatedImagePage({ route, navigation }) {
               style={styles.svg}
             >
               {detections.map((detection, index) => {
-                const [scaledX1, scaledY1, scaledX2, scaledY2] =
-                  getScaledCoordinates(detection.box);
-                // Vérifier si c'est l'objet que l'utilisateur doit photographier
-                const isTargetObject = detection.name === objectToPhotograph;
+                const [x1, y1, x2, y2] =
+                  getScaledCoordinates(detection.bbox.box);
+                const isTarget =
+                  detection.object_name === objectToPhotograph;
                 return (
                   <React.Fragment key={index}>
                     <Rect
-                      x={scaledX1}
-                      y={scaledY1}
-                      width={scaledX2 - scaledX1}
-                      height={scaledY2 - scaledY1}
+                      x={x1}
+                      y={y1}
+                      width={x2 - x1}
+                      height={y2 - y1}
                       stroke={
-                        isTargetObject
+                        isTarget
                           ? "green"
                           : selectedDetection === index
                           ? "yellow"
                           : "red"
                       }
-                      strokeWidth={
-                        isTargetObject ? 4 : selectedDetection === index ? 4 : 2
-                      }
+                      strokeWidth={isTarget || selectedDetection === index ? 4 : 2}
                       fill="none"
                     />
                     <SvgText
-                      x={scaledX1}
-                      y={Math.max(scaledY1 - 5, 15)}
+                      x={x1}
+                      y={Math.max(y1 - 5, 15)}
                       fontSize="14"
                       fill="red"
                       fontWeight="bold"
                     >
-                      {`${detection.name} (${(detection.score * 100).toFixed(
-                        1
-                      )}%)`}
+                      {`${detection.object_name} (${(
+                        detection.confidence * 100
+                      ).toFixed(1)}%)`}
                     </SvgText>
                   </React.Fragment>
                 );
@@ -128,34 +126,29 @@ export default function AnnotatedImagePage({ route, navigation }) {
             </Svg>
           )}
       </View>
-      {/* Vérification de l'objet détecté */}
+
       {objectDetected ? (
-        <Text style={{ color: "green", fontSize: 11 }}>
+        <Text style={styles.success}>
           ✅ Bravo ! {objectToPhotograph} détecté !
         </Text>
       ) : (
         <>
-          <Text style={{ color: "red", fontSize: 11 }}>
+          <Text style={styles.error}>
             ❌ {objectToPhotograph} non détecté.
           </Text>
           <Button title="Réessayer" onPress={() => navigation.goBack()} />
         </>
       )}
-      {/* Bouton pour afficher/masquer la liste */}
+
       <Button
-        title={
-          showDetections
-            ? "Masquer les objets détectés"
-            : "Voir les objets détectés"
-        }
+        title={showDetections ? "Masquer les objets" : "Voir les objets détectés"}
         onPress={() => setShowDetections(!showDetections)}
       />
 
-      {/* Affichage conditionnel de la liste */}
       {showDetections && (
         <FlatList
           data={detections}
-          keyExtractor={(item) => item.name + item.score}
+          keyExtractor={(item) => item.id.toString()}
           renderItem={({ item, index }) => (
             <TouchableOpacity onPress={() => setSelectedDetection(index)}>
               <View
@@ -164,9 +157,9 @@ export default function AnnotatedImagePage({ route, navigation }) {
                   selectedDetection === index && styles.selectedItem,
                 ]}
               >
-                <Text style={styles.objectName}>{item.name}</Text>
+                <Text style={styles.objectName}>{item.object_name}</Text>
                 <Text style={styles.probability}>
-                  {(item.score * 100).toFixed(1)}%
+                  {(item.confidence * 100).toFixed(1)}%
                 </Text>
               </View>
             </TouchableOpacity>
@@ -182,9 +175,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingBottom: 20,
     alignItems: "center",
+    backgroundColor: "#fff",
   },
   title: {
-    textAlign: "center",
     fontSize: 24,
     fontWeight: "bold",
     marginVertical: 10,
@@ -193,16 +186,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#eee",
     alignSelf: "center",
   },
-  svg: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-  },
-  listTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginTop: 10,
-  },
+  svg: { position: "absolute", top: 0, left: 0 },
+  success: { color: "green", fontSize: 12, marginTop: 8 },
+  error: { color: "red", fontSize: 12, marginTop: 8 },
   listItem: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -213,15 +199,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
     width: "90%",
   },
-  selectedItem: {
-    backgroundColor: "#ffd700",
-  },
-  objectName: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  probability: {
-    fontSize: 16,
-    color: "green",
-  },
+  selectedItem: { backgroundColor: "#ffd700" },
+  objectName: { fontSize: 16, fontWeight: "bold" },
+  probability: { fontSize: 14, color: "green" },
 });
