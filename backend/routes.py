@@ -6,6 +6,7 @@ from flask_jwt_extended import (
 from flask import current_app  # Pour obtenir le chemin racine de l'app
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+import uuid
 from datetime import datetime
 from .crud import (
     get_user, get_user_by_username, create_user,
@@ -208,19 +209,16 @@ def create_routes(app):
         if file.filename == "":
             return jsonify({"error": "Empty filename"}), 400
 
-        # Sécuriser le nom du fichier
-        filename = secure_filename(file.filename)
+        ext = os.path.splitext(secure_filename(file.filename))[1]
+        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
 
-        # Définir le chemin complet vers le dossier uploads dans static
         uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
-        # Crée le dossier uploads s'il n'existe pas déjà
         os.makedirs(uploads_dir, exist_ok=True)
         
-        save_path = os.path.join(uploads_dir, filename)
+        save_path = os.path.join(uploads_dir, unique_name)
         file.save(save_path)
 
-        # Construire l'URL relative à la racine du serveur
-        file_url = f"/static/uploads/{filename}"
+        file_url = f"/static/uploads/{unique_name}"
 
         # Sauvegarde en BDD de l'URL de la photo (image_url)
         photo = create_photo(db.session, file_path=file_url, user_id=current_user_id, is_analysed=False)
@@ -239,13 +237,15 @@ def create_routes(app):
         if file.filename == "":
             return jsonify({"error": "Nom de fichier vide"}), 400
 
-        filename = secure_filename(file.filename)
+        ext = os.path.splitext(secure_filename(file.filename))[1]
+        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+
         uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
         os.makedirs(uploads_dir, exist_ok=True)
-        file_path = os.path.join(uploads_dir, filename)
+        file_path = os.path.join(uploads_dir, unique_name)
         file.save(file_path)
 
-        file_url = f"/static/uploads/{filename}"
+        file_url = f"/static/uploads/{unique_name}"
         image = Image.open(file_path).convert('RGB')
 
         photo = create_photo(db.session, file_path=file_url, user_id=current_user_id, is_analysed=True)
