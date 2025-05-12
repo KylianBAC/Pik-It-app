@@ -7,12 +7,14 @@ from flask import current_app  # Pour obtenir le chemin racine de l'app
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
+import uuid
 from .crud import (
     get_user, get_user_by_username, create_user,
     get_all_quests, get_quest_by_date, get_quest_by_id,
     create_photo, get_photos_by_user, get_photo_by_id,
     get_detections_by_photo_id,
-    create_game, get_game, add_game_object,
+    create_game, get_game, get_game_by_code, add_game_player, get_game_players,
+    add_game_object, start_progress, complete_progress,
     add_friend, get_friends,
     add_reward, get_rewards, create_detection,
     create_annotation, get_annotations_by_user, get_annotations_by_photo
@@ -120,19 +122,6 @@ def create_routes(app):
             "quest_date": quest.quest_date.isoformat()
         }
         return jsonify(quest_data), 200
-
-    @app.route('/games/<int:game_id>', methods=['GET'])
-    def get_game_route(game_id):
-        game = get_game(db.session, game_id)
-        if not game:
-            return jsonify({"error": "Game not found"}), 404
-        return jsonify({"id": game.id, "creator_id": game.creator_id, "status": game.status})
-
-    @app.route('/game_objects/', methods=['POST'])
-    def add_game_object_route():
-        data = request.get_json()
-        game_object = add_game_object(db.session, data["game_id"], data["object_to_find"])
-        return jsonify({"id": game_object.id, "game_id": game_object.game_id, "object_to_find": game_object.object_to_find}), 201
 
     @app.route('/friends/', methods=['POST'])
     def add_friend_route():
@@ -479,10 +468,78 @@ def create_routes(app):
 
         return jsonify(photo_data), 200
 
-# Host a game
+# Host a new game
     @app.route('/games/host', methods=['POST'])
-    @jwt_required() 
-    def create_game_route():
-        current_user_id = get_jwt_identity()
-        game = create_game(db.session, creator_id=current_user_id)
-        return jsonify({"id": game.id, "creator_id": game.creator_id, "status": game.status}), 201
+    @jwt_required()
+    def host_game():
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        game = create_game(db.session, creator_id=user_id)
+        # generate unique code
+        game.code = uuid.uuid4().hex[:6].upper()
+        game.max_players = data.get('max_players', 4)
+        game.max_objects = data.get('max_objects', 5)
+        game.filters = data.get('filters', None)
+        game.mode = data.get('mode', 'classic')
+        game.is_public = data.get('is_public', False)
+        db.session.commit()
+
+        # Le créateur rejoint automatiquement la partie
+        add_game_player(db.session, game.id, user_id)
+        return jsonify(game_id=game.id, code=game.code), 201
+
+    # Join a game by code
+    @app.route('/games/join', methods=['POST'])
+    @jwt_required()
+    def join_game():
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        game = get_game_by_code(db.session, data['code'])
+        if not game:
+            return jsonify(error='Game not found'), 404
+        add_game_player(db.session, game.id, user_id)
+        return jsonify(message='Joined'), 200
+
+    # Add object to game
+    @app.route('/games/<int:game_id>/objects', methods=['POST'])
+    @jwt_required()
+    def add_object(game_id):
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        obj = add_game_object(db.session, game_id, data['object'], data['order_index'])
+        return jsonify(id=obj.id, object=obj.object_to_find), 201
+
+    # Record start/completion times
+    @app.route('/games/<int:game_id>/progress', methods=['POST'])
+    @jwt_required()
+    def progress(game_id):
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        action = data.get('action')  # 'start' or 'complete'
+        game_player_id = data.get('game_player_id')
+        game_object_id = data.get('game_object_id')
+        progress_id = data.get('progress_id')
+        if action == 'start':
+            rec = start_progress(db.session, game_player_id, game_object_id)
+            return jsonify(message="Challenge started"), 200
+        else:
+            rec = complete_progress(db.session, progress_id)
+            return jsonify(message="Challenge accomplished"), 200
+
+    # Fetch game details
+    @app.route('/games/<int:game_id>', methods=['GET'])
+    @jwt_required()
+    def game_info(game_id):
+        game = get_game(db.session, game_id)
+        if not game:
+            return jsonify(error='Game not found'), 404
+        return jsonify(id=game.id, code=game.code, status=game.status,
+                       max_players=game.max_players, max_objects=game.max_objects,
+                       filters=game.filters, mode=game.mode, is_public=game.is_public), 200
+
+    # Fetch game players
+    @app.route('/games/<int:game_id>/players', methods=['GET'])
+    @jwt_required()
+    def list_players(game_id):
+        players = get_game_players(db.session, game_id)
+        return jsonify([{"user_id": p.user_id, "score": p.score, "total_time_sec": p.total_time_sec} for p in players]), 200

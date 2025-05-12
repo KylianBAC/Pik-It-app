@@ -54,18 +54,43 @@ class TrainingAnnotation(db.Model):
 
 
 class Game(db.Model):
-    __tablename__ = "games"
-    id = db.Column(db.Integer, primary_key=True, index=True)
-    creator_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    status = db.Column(db.String, default="en cours")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    __tablename__   = "games"
+    id              = db.Column(db.Integer, primary_key=True, index=True)
+    creator_id      = db.Column(db.Integer, db.ForeignKey("users.id"))
+    code            = db.Column(db.String(8), unique=True, nullable=False)
+    is_public       = db.Column(db.Boolean, default=False, nullable=False)
+    max_players     = db.Column(db.Integer, default=2, nullable=False)
+    max_objects     = db.Column(db.Integer, default=5, nullable=False)
+    mode            = db.Column(db.String, default="classique", nullable=False)
+    filters         = db.Column(db.JSON, nullable=True)
+    status          = db.Column(db.String, default="en cours")
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
 
 class GameObject(db.Model):
-    __tablename__ = "game_objects"
-    id = db.Column(db.Integer, primary_key=True, index=True)
-    game_id = db.Column(db.Integer, db.ForeignKey("games.id"))
-    object_to_find = db.Column(db.String)
-    is_completed = db.Column(db.Boolean, default=False)
+    __tablename__   = "game_objects"
+    id              = db.Column(db.Integer, primary_key=True, index=True)
+    game_id         = db.Column(db.Integer, db.ForeignKey("games.id", ondelete="CASCADE"), nullable=False)
+    object_to_find  = db.Column(db.String, nullable=False)
+    order_index     = db.Column(db.Integer, nullable=False)
+
+class GamePlayer(db.Model):
+    __tablename__   = "game_players"
+    id              = db.Column(db.Integer, primary_key=True, index=True)
+    game_id         = db.Column(db.Integer, db.ForeignKey("games.id", ondelete="CASCADE"), nullable=False)
+    user_id         = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    joined_at       = db.Column(db.DateTime, default=datetime.utcnow)
+    is_ready        = db.Column(db.Boolean, default=False)
+    score           = db.Column(db.Integer, default=0)
+    total_time_sec  = db.Column(db.Float, default=0.0)
+
+class GamePlayerProgress(db.Model):
+    __tablename__       = "game_player_progress"
+    id                  = db.Column(db.Integer, primary_key=True, index=True)
+    game_player_id      = db.Column(db.Integer, db.ForeignKey("game_players.id", ondelete="CASCADE"), nullable=False)
+    game_object_id      = db.Column(db.Integer, db.ForeignKey("game_objects.id", ondelete="CASCADE"), nullable=False)
+    started_at          = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at        = db.Column(db.DateTime, nullable=True)
+    duration_sec        = db.Column(db.Float, nullable=True)
 
 class Friend(db.Model):
     __tablename__ = "friends"
