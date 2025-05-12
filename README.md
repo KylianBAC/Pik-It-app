@@ -2,6 +2,7 @@
 
 ## Consignes pour ceux qui bossent sur le Frontend
 ``Allez sur la branche 'Frontend' si nous ne l'êtes pas encore.``
+ Le backend ne fonctionnera pas, il faudrait que vous créiez un fichier .env à la racine du projet et que vous y mettiez les variables de la base de données (que vous devez aussi créer). Tout expliquer prendrait trop de temps actuellement et vous devriez pouvoir bosser dessus sans ça. Vous pouvez vous contenter de lancer le frontent. Il y aura quelques erreurs mais vous pourrez travailler dessus. Si vous avez des questions, n'hésitez pas à me les poser.
 
 ## Installation
 ### Backend
