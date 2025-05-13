@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from .models import User, Quest, Photo, Game, GameObject, GamePlayer, GamePlayerProgress, Friend, Reward, Detection, TrainingAnnotation
+from .models import User, Quest, Photo, Game, GameObject, GameParticipant, Friend, Reward, Detection, TrainingAnnotation
 from datetime import date
 import uuid
 
@@ -78,24 +78,54 @@ def get_detections_by_photo_id(photo_id: int):
 
 # --- Parties de jeu ---
 
-
 def create_game(db: Session, creator_id: int,
-                max_players: int = 2,
+                max_players: int = 4,
                 max_objects: int = 5,
                 mode: str = 'classique',
                 filters: dict = None,
-                is_public: bool = False):
-    code = uuid.uuid4().hex[:8]
+                is_public: bool = True,
+                password: str = None):
+    code = uuid.uuid4().hex[:6]
     game = Game(
         creator_id=creator_id,
         code=code,
-        is_public=is_public,
         max_players=max_players,
         max_objects=max_objects,
         mode=mode,
-        filters=filters or {}
+        filters=filters,
+        is_public=is_public,
+        password=password
     )
     db.add(game)
+    db.commit()
+    db.refresh(game)
+    return game
+
+def update_game(
+    db: Session,
+    game_id: int,
+    max_players: int = None,
+    max_objects: int = None,
+    mode: str = None,
+    filters: dict = None,
+    is_public: bool = None,
+    password: str = None
+):
+    game = db.query(Game).filter(Game.id == game_id).first()
+    if not game:
+        return None
+    if max_players is not None:
+        game.max_players = max_players
+    if max_objects is not None:
+        game.max_objects = max_objects
+    if mode is not None:
+        game.mode = mode
+    if filters is not None:
+        game.filters = filters
+    if is_public is not None:
+        game.is_public = is_public
+    if password is not None:
+        game.password = password
     db.commit()
     db.refresh(game)
     return game
@@ -110,58 +140,65 @@ def get_game_by_code(db: Session, code: str):
 
 
 def add_game_object(db: Session, game_id: int, object_to_find: str, order_index: int):
-    obj = GameObject(
-        game_id=game_id, object_to_find=object_to_find, order_index=order_index)
+    obj = GameObject(game_id=game_id, object_to_find=object_to_find, order_index=order_index)
     db.add(obj)
     db.commit()
     db.refresh(obj)
     return obj
 
-# --- Joueurs de partie ---
+def list_game_objects(db: Session, game_id: int):
+    return db.query(GameObject).filter_by(game_id=game_id).order_by(GameObject.order_index).all()
 
 
-def add_game_player(db: Session, game_id: int, user_id: int):
-    player = GamePlayer(game_id=game_id, user_id=user_id)
-    db.add(player)
-    db.commit()
-    db.refresh(player)
-    return player
+# Participants
 
-
-def get_game_players(db: Session, game_id: int):
-    return db.query(GamePlayer).filter(GamePlayer.game_id == game_id).all()
-
-
-# --- Progression d'un joueur ---
-
-
-def start_progress(db: Session, game_player_id: int, game_object_id: int):
-    prog = GamePlayerProgress(
-        game_player_id=game_player_id,
-        game_object_id=game_object_id
+def add_participant(db: Session, game_id: int, user_id: int, is_creator: bool = False):
+    join_code = uuid.uuid4().hex[:8]
+    # fetch object list from game
+    objects = [obj.object_to_find for obj in list_game_objects(db, game_id)]
+    participant = GameParticipant(
+        game_id=game_id,
+        user_id=user_id,
+        join_code=join_code,
+        is_creator=is_creator,
+        objects_to_find=objects,
+        start_time=None,
+        end_time=None,
+        lap_times=[],
+        status='pending'
     )
-    db.add(prog)
+    db.add(participant)
     db.commit()
-    db.refresh(prog)
-    return prog
+    db.refresh(participant)
+    return participant
 
 
-def complete_progress(db: Session, progress_id: int):
-    prog = db.query(GamePlayerProgress).get(progress_id)
-    if not prog or prog.completed_at:
+def list_participants(db: Session, game_id: int):
+    return db.query(GameParticipant).filter_by(game_id=game_id).all()
+
+
+def get_participant(db: Session, participant_id: int):
+    return db.query(GameParticipant).filter_by(id=participant_id).first()
+
+def update_participant_objects(db: Session, participant_id: int, objects: list):
+    participant = db.query(GameParticipant).filter(GameParticipant.id == participant_id).first()
+    if not participant:
         return None
-    prog.completed_at = func.now()
-    prog.duration_sec = db.query(
-        func.extract(
-            'epoch',
-            func.now() - GamePlayerProgress.started_at
-        )
-    ).scalar()
-    # Met à jour le temps total du joueur
-    player = db.query(GamePlayer).get(prog.game_player_id)
-    player.total_time_sec = (player.total_time_sec or 0) + prog.duration_sec
+    participant.objects_to_find = objects
     db.commit()
-    return prog
+    db.refresh(participant)
+    return participant
+
+def update_participant_status_and_start(db: Session, participant_id: int, start_time, status: str = 'in_progress'):
+    participant = db.query(GameParticipant).filter(GameParticipant.id == participant_id).first()
+    if not participant:
+        return None
+    participant.start_time = start_time
+    participant.status = status
+    db.commit()
+    db.refresh(participant)
+    return participant
+
 
 # Amis
 

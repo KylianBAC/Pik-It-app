@@ -8,13 +8,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import uuid
+import random
 from .crud import (
     get_user, get_user_by_username, create_user,
     get_all_quests, get_quest_by_date, get_quest_by_id,
     create_photo, get_photos_by_user, get_photo_by_id,
     get_detections_by_photo_id,
-    create_game, get_game, get_game_by_code, add_game_player, get_game_players,
-    add_game_object, start_progress, complete_progress,
+    create_game, update_game, get_game, get_game_by_code,
+    add_game_object, list_game_objects,
+    add_participant, get_participant, list_participants, update_participant_status_and_start, update_participant_objects,
     add_friend, get_friends,
     add_reward, get_rewards, create_detection,
     create_annotation, get_annotations_by_user, get_annotations_by_photo
@@ -472,74 +474,204 @@ def create_routes(app):
     @app.route('/games/host', methods=['POST'])
     @jwt_required()
     def host_game():
-        user_id = get_jwt_identity()
-        data = request.get_json()
-        game = create_game(db.session, creator_id=user_id)
-        # generate unique code
-        game.code = uuid.uuid4().hex[:6].upper()
-        game.max_players = data.get('max_players', 4)
-        game.max_objects = data.get('max_objects', 5)
-        game.filters = data.get('filters', None)
-        game.mode = data.get('mode', 'classic')
-        game.is_public = data.get('is_public', False)
-        db.session.commit()
-
-        # Le créateur rejoint automatiquement la partie
-        add_game_player(db.session, game.id, user_id)
+        uid = int(get_jwt_identity())
+        cfg = request.get_json() or {}
+        game = create_game(
+            db.session,
+            creator_id=uid,
+            max_players=cfg.get('max_players',4),
+            max_objects=cfg.get('max_objects',5),
+            mode=cfg.get('mode','classique'),
+            filters=cfg.get('filters'),
+            is_public=cfg.get('is_public',False)
+        )
+        # creator joins
+        is_creator = True
+        participant = add_participant(db.session, game.id, uid, is_creator)
         return jsonify(game_id=game.id, code=game.code), 201
 
-    # Join a game by code
-    @app.route('/games/join', methods=['POST'])
+    @app.route('/games/<int:game_id>', methods=['PUT'])
     @jwt_required()
-    def join_game():
-        user_id = get_jwt_identity()
-        data = request.get_json()
-        game = get_game_by_code(db.session, data['code'])
-        if not game:
-            return jsonify(error='Game not found'), 404
-        add_game_player(db.session, game.id, user_id)
-        return jsonify(message='Joined'), 200
-
-    # Add object to game
-    @app.route('/games/<int:game_id>/objects', methods=['POST'])
-    @jwt_required()
-    def add_object(game_id):
-        user_id = get_jwt_identity()
-        data = request.get_json()
-        obj = add_game_object(db.session, game_id, data['object'], data['order_index'])
-        return jsonify(id=obj.id, object=obj.object_to_find), 201
-
-    # Record start/completion times
-    @app.route('/games/<int:game_id>/progress', methods=['POST'])
-    @jwt_required()
-    def progress(game_id):
-        user_id = get_jwt_identity()
-        data = request.get_json()
-        action = data.get('action')  # 'start' or 'complete'
-        game_player_id = data.get('game_player_id')
-        game_object_id = data.get('game_object_id')
-        progress_id = data.get('progress_id')
-        if action == 'start':
-            rec = start_progress(db.session, game_player_id, game_object_id)
-            return jsonify(message="Challenge started"), 200
-        else:
-            rec = complete_progress(db.session, progress_id)
-            return jsonify(message="Challenge accomplished"), 200
-
-    # Fetch game details
-    @app.route('/games/<int:game_id>', methods=['GET'])
-    @jwt_required()
-    def game_info(game_id):
+    def modify_game(game_id):
+        uid = int(get_jwt_identity())
+        data = request.get_json() or {}
         game = get_game(db.session, game_id)
         if not game:
             return jsonify(error='Game not found'), 404
-        return jsonify(id=game.id, code=game.code, status=game.status,
-                       max_players=game.max_players, max_objects=game.max_objects,
-                       filters=game.filters, mode=game.mode, is_public=game.is_public), 200
+        # Seul le créateur peut modifier
+        if game.creator_id != uid:
+            return jsonify(error='Unauthorized'), 403
+        # Mise à jour
+        updated = update_game(
+            db.session,
+            game_id=game_id,
+            max_players=data.get('max_players'),
+            max_objects=data.get('max_objects'),
+            mode=data.get('mode'),
+            filters=data.get('filters'),
+            is_public=data.get('is_public'),
+            password=data.get('password')
+        )
+        if not updated:
+            return jsonify(error='Update failed'), 400
+        return jsonify({
+            'game_id': updated.id,
+            'max_players': updated.max_players,
+            'max_objects': updated.max_objects,
+            'mode': updated.mode,
+            'filters': updated.filters,
+            'is_public': updated.is_public,
+            'password': updated.password
+        }), 200
 
-    # Fetch game players
-    @app.route('/games/<int:game_id>/players', methods=['GET'])
+    @app.route('/games/<int:game_id>/start', methods=['PUT'])
     @jwt_required()
-    def list_players(game_id):
-        players = get_game_players(db.session, game_id)
-        return jsonify([{"user_id": p.user_id, "score": p.score, "total_time_sec": p.total_time_sec} for p in players]), 200
+    def start_game(game_id):
+        uid = int(get_jwt_identity())
+        game = get_game(db.session, game_id)
+
+        if not game:
+            return jsonify(error='Game not found'), 404
+        
+        # Seul le créateur peut démarrer la partie
+        if game.creator_id != uid:
+            return jsonify(error='Only the owner can start the game'), 403
+        
+        if game.status == "in_progress":
+            return jsonify(error='The game has already started'), 400
+        
+        # Initialise start_time de tous les participants
+        participants = list_participants(db.session, game_id)
+        now = datetime.utcnow()
+        for p in participants:
+            p.start_time = now
+            p.status = 'in_progress'
+        db.session.commit()
+
+        # Génère la liste d'objets à trouver
+        OBJECT_POOL = [
+            "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
+            "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
+            "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+            "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+            "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+            "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
+            "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza",
+            "donut", "cake", "chair", "couch", "potted plant", "bed", "dining table", "toilet",
+            "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
+            "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
+            "hair drier", "toothbrush"
+        ]
+        
+        selection = random.sample(OBJECT_POOL, k=game.max_objects)
+        for idx, obj_name in enumerate(selection, start=1):
+            add_game_object(db.session, game_id, obj_name, order_index=idx)
+        # Initialise start_time et objets pour chaque participant
+        participants = list_participants(db.session, game_id)
+        now = datetime.utcnow()
+        for p in participants:
+            update_participant_status_and_start(db.session, p.id, now, status='in_progress')
+            update_participant_objects(db.session, p.id, selection)
+
+        return jsonify(message='Game started', game_id=game_id), 200
+
+
+
+    @app.route('/games/join', methods=['POST'])
+    @jwt_required()
+    def join_game():
+        uid = int(get_jwt_identity())
+        data = request.get_json() or {}
+        code = data.get('code')
+        provided_password = data.get('password')
+        game = get_game_by_code(db.session, code)
+        if not game:
+            return jsonify(error='Game not found'), 404
+        if not game.is_public:
+            if not provided_password:
+                return jsonify(error='Password required to join this private game'), 400
+            if provided_password != game.password:
+                return jsonify(error='Invalid password'), 401
+        current_parts = list_participants(db.session, game.id)
+        if any(p.user_id == uid for p in current_parts):
+            return jsonify(error='You are already in this game'), 400
+        if len(current_parts) >= game.max_players:
+            return jsonify(error='Game is already full'), 400
+        part = add_participant(db.session, game.id, uid)
+        return jsonify(participant_id=part.id), 200
+    
+    # Récupérer par game_id
+    @app.route('/games/id/<int:game_id>', methods=['GET'])
+    @jwt_required()
+    def get_game_by_id_route(game_id):
+        game = get_game(db.session, game_id)
+        if not game:
+            return jsonify({"error": "Game not found"}), 404
+
+        return jsonify({
+            "id": game.id,
+            "code": game.code,
+            "creator_id": game.creator_id,
+            "is_public": game.is_public,
+            "max_players": game.max_players,
+            "max_objects": game.max_objects,
+            "mode": game.mode,
+            "filters": game.filters,
+            "status": game.status,
+            "created_at": game.created_at.isoformat() if game.created_at else None,
+        }), 200
+
+    # Récupérer par code
+    @app.route('/games/code/<string:code>', methods=['GET'])
+    @jwt_required()
+    def get_game_by_code_route(code):
+        game = get_game_by_code(db.session, code)
+        if not game:
+            return jsonify({"error": "Game not found"}), 404
+
+        return jsonify({
+            "id": game.id,
+            "code": game.code,
+            "creator_id": game.creator_id,
+            "is_public": game.is_public,
+            "max_players": game.max_players,
+            "max_objects": game.max_objects,
+            "mode": game.mode,
+            "filters": game.filters,
+            "status": game.status,
+            "created_at": game.created_at.isoformat() if game.created_at else None,
+        }), 200
+
+    @app.route('/games/<int:game_id>/participants', methods=['GET'])
+    @jwt_required()
+    def get_all_participants(game_id):
+        # Optionnel : vérifier que l’utilisateur a bien le droit de voir les participants
+        current_user = int(get_jwt_identity())
+        # Récupération de tous les participants pour la partie
+        parts = list_participants(db.session, game_id)
+
+        # Sérialisation manuelle
+        result = []
+        for p in parts:
+            result.append({
+                "id": p.id,
+                "game_id": p.game_id,
+                "user_id": p.user_id,
+                "is_creator": p.is_creator,
+                "join_code": p.join_code,
+                "objects_to_find": p.objects_to_find,    # JSON
+                "start_time": p.start_time.isoformat() if p.start_time else None,
+                "end_time": p.end_time.isoformat() if p.end_time else None,
+                "lap_times": p.lap_times,                # JSON list
+                "status": p.status,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            })
+
+        return jsonify(result), 200
+
+    @app.route('/games/<int:game_id>/objects', methods=['POST'])
+    @jwt_required()
+    def add_object(game_id):
+        data = request.get_json() or {}
+        obj = add_game_object(db.session, game_id, data['object'], data['order_index'])
+        return jsonify(id=obj.id, object=obj.object_to_find), 201
