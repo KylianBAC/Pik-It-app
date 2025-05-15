@@ -57,7 +57,7 @@ def get_photo_by_id(photo_id: int, user_id: int):
 
 
 def create_detection(db: Session, photo_id: int, object_name: str, confidence: float, bbox: dict,
-                     challenge_object: str, is_challenge_object: bool, challenge_id: int = None):
+                     challenge_object: str, is_challenge_object: bool, challenge_id: int = None, game_participant_id: int = None):
     detection = Detection(
         photo_id=photo_id,
         object_name=object_name,
@@ -65,7 +65,8 @@ def create_detection(db: Session, photo_id: int, object_name: str, confidence: f
         bbox=bbox,
         challenge_object=challenge_object,
         is_challenge_object=is_challenge_object,
-        challenge_id=challenge_id  # Nouveau paramètre
+        challenge_id=challenge_id,
+        game_participant_id=game_participant_id
     )
     db.add(detection)
     db.commit()
@@ -104,6 +105,7 @@ def create_game(db: Session, creator_id: int,
 def update_game(
     db: Session,
     game_id: int,
+    status: str = None,
     max_players: int = None,
     max_objects: int = None,
     mode: str = None,
@@ -114,6 +116,8 @@ def update_game(
     game = db.query(Game).filter(Game.id == game_id).first()
     if not game:
         return None
+    if status is not None:
+        game.status = status
     if max_players is not None:
         game.max_players = max_players
     if max_objects is not None:
@@ -180,7 +184,7 @@ def list_participants(db: Session, game_id: int):
 def get_participant(db: Session, participant_id: int):
     return db.query(GameParticipant).filter_by(id=participant_id).first()
 
-def update_participant_objects(db: Session, participant_id: int, objects: list):
+def update_participant_objects(db: Session, participant_id: int, objects: list[dict]):
     participant = db.query(GameParticipant).filter(GameParticipant.id == participant_id).first()
     if not participant:
         return None

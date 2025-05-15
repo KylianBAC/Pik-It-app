@@ -6,6 +6,7 @@ from flask_jwt_extended import (
 from flask import current_app  # Pour obtenir le chemin racine de l'app
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+import uuid
 from datetime import datetime
 import uuid
 import random
@@ -27,12 +28,14 @@ from PIL import Image
 from .database import db
 import os
 
+
 def create_routes(app):
     @app.route('/user/register', methods=['POST'])
     def register():
         data = request.get_json()
         hashed_pw = generate_password_hash(data['password'])
-        user = create_user(db.session, data['username'], data['email'], hashed_pw)
+        user = create_user(
+            db.session, data['username'], data['email'], hashed_pw)
         return jsonify({"id": user.id, "username": user.username}), 201
 
     @app.route('/user/login', methods=['POST'])
@@ -46,7 +49,7 @@ def create_routes(app):
             identity=str(user.id),
             additional_claims={
                 'username': user.username,
-                'role': 'player' 
+                'role': 'player'
             }
         )
         return jsonify(access_token=access_token), 200
@@ -57,7 +60,6 @@ def create_routes(app):
         if not user:
             return jsonify({"error": "User not found"}), 404
         return jsonify({"id": user.id, "username": user.username, "points": user.points})
-    
 
     @app.route('/admin/create_daily_quest', methods=['POST'])
     def create_daily_quest_endpoint():
@@ -142,7 +144,8 @@ def create_routes(app):
     @app.route('/rewards/', methods=['POST'])
     def add_reward_route():
         data = request.get_json()
-        reward = add_reward(db.session, data["user_id"], data["reward_type"], data["reward_value"])
+        reward = add_reward(
+            db.session, data["user_id"], data["reward_type"], data["reward_value"])
         return jsonify({"id": reward.id, "user_id": reward.user_id, "reward_type": reward.reward_type, "reward_value": reward.reward_value}), 201
 
     @app.route('/rewards', methods=['GET'])
@@ -175,6 +178,8 @@ def create_routes(app):
 # Registered Users requests
 
 # Get user data
+
+
     @app.route('/users/me', methods=['GET'])
     @jwt_required()
     def get_user_me_route():
@@ -184,7 +189,7 @@ def create_routes(app):
         if not user:
             return jsonify({"error": "User not found"}), 404
         return jsonify({"id": user.id, "username": user.username, "email": user.email, "created_at": user.created_at, "points": user.points})
-    
+
 # Upload photo
     @app.route('/photos/', methods=['POST'])
     @jwt_required()
@@ -200,21 +205,21 @@ def create_routes(app):
             return jsonify({"error": "Empty filename"}), 400
 
         # Sécuriser le nom du fichier
-        filename = secure_filename(file.filename)
 
-        # Définir le chemin complet vers le dossier uploads dans static
+        ext = os.path.splitext(secure_filename(file.filename))[1]
+        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+
         uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
-        # Crée le dossier uploads s'il n'existe pas déjà
         os.makedirs(uploads_dir, exist_ok=True)
-        
-        save_path = os.path.join(uploads_dir, filename)
+
+        save_path = os.path.join(uploads_dir, unique_name)
         file.save(save_path)
 
-        # Construire l'URL relative à la racine du serveur
-        file_url = f"/static/uploads/{filename}"
+        file_url = f"/static/uploads/{unique_name}"
 
         # Sauvegarde en BDD de l'URL de la photo (image_url)
-        photo = create_photo(db.session, file_path=file_url, user_id=current_user_id, is_analysed=False)
+        photo = create_photo(db.session, file_path=file_url,
+                             user_id=current_user_id, is_analysed=False)
         return jsonify({"id": photo.id, "file_path": photo.file_path}), 201
 
 # Upload and detect photo
@@ -230,22 +235,25 @@ def create_routes(app):
         if file.filename == "":
             return jsonify({"error": "Nom de fichier vide"}), 400
 
-        filename = secure_filename(file.filename)
+        ext = os.path.splitext(secure_filename(file.filename))[1]
+        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+
         uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
         os.makedirs(uploads_dir, exist_ok=True)
-        file_path = os.path.join(uploads_dir, filename)
+        file_path = os.path.join(uploads_dir, unique_name)
         file.save(file_path)
 
-        file_url = f"/static/uploads/{filename}"
+        file_url = f"/static/uploads/{unique_name}"
         image = Image.open(file_path).convert('RGB')
 
-        photo = create_photo(db.session, file_path=file_url, user_id=current_user_id, is_analysed=True)
+        photo = create_photo(db.session, file_path=file_url,
+                             user_id=current_user_id, is_analysed=True)
 
         detections = detect_objects(image)
 
         challenge_id = request.form.get("challenge_id")
         challenge_object = None
- 
+
         if challenge_id is not None:
             try:
                 challenge_id = int(challenge_id)
@@ -262,7 +270,8 @@ def create_routes(app):
 
         detection_entries = []
         for det in detections:
-            is_challenge = challenge_object and det["name"].lower() == challenge_object.lower()
+            is_challenge = challenge_object and det["name"].lower(
+            ) == challenge_object.lower()
             entry = create_detection(
                 db.session,
                 photo_id=photo.id,
@@ -295,7 +304,8 @@ def create_routes(app):
 
         photo_id = data.get("photo_id")
         object_name = data.get("object_name")
-        bbox = data.get("bbox")            # on attend un dict { "box": [x1, y1, x2, y2] }
+        # on attend un dict { "box": [x1, y1, x2, y2] }
+        bbox = data.get("bbox")
         challenge_id = data.get("challenge_id")
 
         # Vérifications basiques
@@ -327,13 +337,14 @@ def create_routes(app):
             "challenge_id": ann.challenge_id,
             "created_at": ann.created_at.isoformat()
         }), 201
-    
+
 # Get les annotations de l'utilisateur
     @app.route('/annotations', methods=['GET'])
     @jwt_required()
     def get_user_annotations():
         current_user_id = get_jwt_identity()
-        annotations = get_annotations_by_user(db.session, user_id=current_user_id)
+        annotations = get_annotations_by_user(
+            db.session, user_id=current_user_id)
 
         result = []
         for ann in annotations:
@@ -349,7 +360,7 @@ def create_routes(app):
         # Vérification basique
         if not result:
             return jsonify({"Aucun résultat": "Aucun résultat pour cet utilisateur"}), 200
-        
+
         return jsonify(result), 200
 
 # Get les annotations de l'utilisateur pour une photo précise
@@ -357,7 +368,8 @@ def create_routes(app):
     @jwt_required()
     def get_annotations_for_photo(photo_id):
         current_user_id = get_jwt_identity()
-        annotations = get_annotations_by_photo(db.session, user_id=current_user_id, photo_id=photo_id)
+        annotations = get_annotations_by_photo(
+            db.session, user_id=current_user_id, photo_id=photo_id)
 
         result = []
         for ann in annotations:
@@ -373,8 +385,7 @@ def create_routes(app):
          # Vérifications basiques
         if not result:
             return jsonify({"Aucun résultat": "Aucun résultat pour cet utilisateur avec cette photo"}), 200
-        
-        
+
         return jsonify(result), 200
 
 # Complete a quest
@@ -392,7 +403,7 @@ def create_routes(app):
 
         if not photo_id or not challenge_id:
             return jsonify({"error": "photo_id et challenge_id sont requis"}), 400
-        else :
+        else:
             # Requête interne pour récupérer le challenge via son ID
             with current_app.test_client() as client:
                 response = client.get(f"/quests/id/{challenge_id}")
@@ -414,9 +425,9 @@ def create_routes(app):
         if not valid:
             return jsonify({"error": "Challenge non complété ou détection non valide"}), 400
 
-    
         # Si le challenge est complété, vous attribuez la récompense
-        reward = add_reward(db.session, user_id, reward_type=challenge_name, reward_value=reward_points, challenge_id=challenge_id)
+        reward = add_reward(db.session, user_id, reward_type=challenge_name,
+                            reward_value=reward_points, challenge_id=challenge_id)
 
         # Vous pouvez aussi mettre à jour le statut de la photo ou de la quête si besoin
         return jsonify({
@@ -431,6 +442,8 @@ def create_routes(app):
 
 
 # Get user photos
+
+
     @app.route('/photos/me', methods=['GET'])
     @jwt_required()
     def fetch_user_photos():
@@ -479,11 +492,11 @@ def create_routes(app):
         game = create_game(
             db.session,
             creator_id=uid,
-            max_players=cfg.get('max_players',4),
-            max_objects=cfg.get('max_objects',5),
-            mode=cfg.get('mode','classique'),
+            max_players=cfg.get('max_players', 4),
+            max_objects=cfg.get('max_objects', 5),
+            mode=cfg.get('mode', 'classique'),
             filters=cfg.get('filters'),
-            is_public=cfg.get('is_public',False)
+            is_public=cfg.get('is_public', False)
         )
         # creator joins
         is_creator = True
@@ -532,14 +545,14 @@ def create_routes(app):
 
         if not game:
             return jsonify(error='Game not found'), 404
-        
+
         # Seul le créateur peut démarrer la partie
         if game.creator_id != uid:
             return jsonify(error='Only the owner can start the game'), 403
-        
+
         if game.status == "in_progress":
             return jsonify(error='The game has already started'), 400
-        
+
         # Initialise start_time de tous les participants
         participants = list_participants(db.session, game_id)
         now = datetime.utcnow()
@@ -562,20 +575,31 @@ def create_routes(app):
             "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
             "hair drier", "toothbrush"
         ]
-        
+
         selection = random.sample(OBJECT_POOL, k=game.max_objects)
-        for idx, obj_name in enumerate(selection, start=1):
-            add_game_object(db.session, game_id, obj_name, order_index=idx)
+        for idx, name in enumerate(selection, start=1):
+            add_game_object(db.session, game_id, name, order_index=idx)
+
+        # 4) Prépare le JSON structuré pour les participants
+        objects_payload = [
+            {"order_index": idx, "objectname": name, "found": False}
+            for idx, name in enumerate(selection, start=1)
+        ]
         # Initialise start_time et objets pour chaque participant
         participants = list_participants(db.session, game_id)
         now = datetime.utcnow()
         for p in participants:
-            update_participant_status_and_start(db.session, p.id, now, status='in_progress')
-            update_participant_objects(db.session, p.id, selection)
+            update_participant_status_and_start(
+                db.session, p.id, now, status='in_progress')
+            update_participant_objects(db.session, p.id, objects_payload)
+
+        updated = update_game(
+            db.session,
+            game_id=game_id,
+            status='in_progress'
+        )
 
         return jsonify(message='Game started', game_id=game_id), 200
-
-
 
     @app.route('/games/join', methods=['POST'])
     @jwt_required()
@@ -599,7 +623,7 @@ def create_routes(app):
             return jsonify(error='Game is already full'), 400
         part = add_participant(db.session, game.id, uid)
         return jsonify(participant_id=part.id), 200
-    
+
     # Récupérer par game_id
     @app.route('/games/id/<int:game_id>', methods=['GET'])
     @jwt_required()
@@ -673,5 +697,128 @@ def create_routes(app):
     @jwt_required()
     def add_object(game_id):
         data = request.get_json() or {}
-        obj = add_game_object(db.session, game_id, data['object'], data['order_index'])
+        obj = add_game_object(db.session, game_id,
+                              data['object'], data['order_index'])
         return jsonify(id=obj.id, object=obj.object_to_find), 201
+
+    @app.route('/games/detect', methods=['POST'])
+    @jwt_required()
+    def game_detect():
+        current_user_id = int(get_jwt_identity())
+
+        # Champs attendus
+        participant_id = request.form.get("participant_id")
+        start_time = request.form.get("start_time")
+        end_time = request.form.get("end_time")
+
+        if not all([participant_id, start_time, end_time]):
+            return jsonify({"error": "participant_id, start_time, end_time requis"}), 400
+
+        try:
+            participant_id = int(participant_id)
+        except ValueError:
+            return jsonify({"error": "participant_id invalide"}), 400
+
+        # Recherche du participant
+        participant = get_participant(
+            db.session, participant_id=participant_id)
+        if not participant:
+            return jsonify({"error": "Participant introuvable"}), 404
+
+        objects = participant.objects_to_find or []
+        lap_times = participant.lap_times or []
+
+        # Trouver le prochain objet non trouvé
+        next_object = next((o for o in objects if not o.get("found")), None)
+        if not next_object:
+            return jsonify({
+                "message": "Tous les objets ont déjà été trouvés.",
+                "detections": detection_entries
+            }), 200
+
+        # Vérification de fichier
+        if 'file' not in request.files:
+            return jsonify({"error": "Aucun fichier envoyé"}), 400
+
+        file = request.files['file']
+        if file.filename == "":
+            return jsonify({"error": "Nom de fichier vide"}), 400
+
+        # Enregistrement de la photo
+
+        ext = os.path.splitext(secure_filename(file.filename))[1]
+        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+
+        uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
+        os.makedirs(uploads_dir, exist_ok=True)
+        file_path = os.path.join(uploads_dir, unique_name)
+        file.save(file_path)
+
+        file_url = f"/static/uploads/{unique_name}"
+        image = Image.open(file_path).convert('RGB')
+
+        photo = create_photo(db.session, file_path=file_url,
+                             user_id=current_user_id, is_analysed=True)
+
+        # Détection
+        detections = detect_objects(image)
+
+        # Enregistre les détections
+        detection_entries = []
+        for det in detections:
+            is_challenge = next_object["objectname"] and det["name"].lower(
+            ) == next_object["objectname"].lower()
+            entry = create_detection(
+                db.session,
+                photo_id=photo.id,
+                object_name=det["name"],
+                confidence=det["score"],
+                bbox={"box": det["box"]},
+                challenge_object=next_object["objectname"],
+                is_challenge_object=is_challenge,
+                game_participant_id=participant_id  # Important ici
+            )
+            detection_entries.append({
+                "id": entry.id,
+                "object_name": entry.object_name,
+                "confidence": entry.confidence,
+                "bbox": entry.bbox,
+                "game_participant_id": participant_id
+            })
+
+        # Comparaison entre les détections et l’objet attendu
+        found_match = any(
+            det["object_name"].lower() == next_object["objectname"].lower()
+            for det in detection_entries
+        )
+
+        if found_match:
+            # Marque l'objet comme trouvé
+            next_object["found"] = True
+
+            # Ajoute un lap_time
+            lap_times.append({
+                "order_index": next_object["order_index"],
+                "start_time": start_time,
+                "end_time": end_time
+            })
+
+            # Sauvegarde en base
+            participant.objects_to_find = objects
+            participant.lap_times = lap_times
+            db.session.commit()
+
+            return jsonify({
+                "message": f"Objet {next_object['objectname']} trouvé !",
+                "detections": detection_entries,
+                "updated_object": next_object,
+                "lap_time_added": True
+            }), 200
+
+        else:
+            return jsonify({
+                "message": f"Objet attendu : {next_object['objectname']}. Aucun match détecté.",
+                "detections": detection_entries,
+                "updated_object": None,
+                "lap_time_added": False
+            }), 200
