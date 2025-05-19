@@ -28,7 +28,7 @@ export default function App() {
           return (
             <NavigationContainer>
               <Stack.Navigator screenOptions={{ headerShown: false }}>
-                {userToken == null ? (
+                {userToken != null ? (
                   // Écrans d'authentification
                   <>
                     <Stack.Screen name="Login" component={LoginScreen} />
