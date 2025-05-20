@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm.attributes import flag_modified
 from .models import User, Quest, Photo, Game, GameObject, GameParticipant, Friend, Reward, Detection, TrainingAnnotation
 from datetime import date
 import uuid
@@ -189,6 +190,7 @@ def update_participant_objects(db: Session, participant_id: int, objects: list[d
     if not participant:
         return None
     participant.objects_to_find = objects
+    flag_modified(participant, "objects_to_find")
     db.commit()
     db.refresh(participant)
     return participant

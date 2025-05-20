@@ -496,7 +496,7 @@ def create_routes(app):
             max_objects=cfg.get('max_objects', 5),
             mode=cfg.get('mode', 'classique'),
             filters=cfg.get('filters'),
-            is_public=cfg.get('is_public', False)
+            is_public=cfg.get('is_public', True)
         )
         # creator joins
         is_creator = True
@@ -582,8 +582,8 @@ def create_routes(app):
 
         # 4) Prépare le JSON structuré pour les participants
         objects_payload = [
-            {"order_index": idx, "objectname": name, "found": False}
-            for idx, name in enumerate(selection, start=1)
+            { "order_index": idx+1, "objectname": name, "found": False, "skipped": False }
+            for idx, name in enumerate(selection)
         ]
         # Initialise start_time et objets pour chaque participant
         participants = list_participants(db.session, game_id)
@@ -729,7 +729,7 @@ def create_routes(app):
         lap_times = participant.lap_times or []
 
         # Trouver le prochain objet non trouvé
-        next_object = next((o for o in objects if not o.get("found")), None)
+        next_object = next((o for o in objects if not o.get("found") and not o.get("skipped")), None)
         if not next_object:
             return jsonify({
                 "message": "Tous les objets ont déjà été trouvés.",
@@ -803,17 +803,26 @@ def create_routes(app):
                 "end_time": end_time
             })
 
-            # Sauvegarde en base
+            # Sauvegarde des objets et lap_times
             participant.objects_to_find = objects
             participant.lap_times = lap_times
+
+            # Vérifie si c'était le dernier objet à trouver
+            all_found = all(o.get("found") for o in objects)
+            if all_found:
+                participant.status = "finished"
+                participant.end_time = end_time  # On prend le end_time transmis par l'utilisateur
+
             db.session.commit()
 
             return jsonify({
                 "message": f"Objet {next_object['objectname']} trouvé !",
                 "detections": detection_entries,
                 "updated_object": next_object,
-                "lap_time_added": True
+                "lap_time_added": True,
+                "game_finished": all_found
             }), 200
+
 
         else:
             return jsonify({
@@ -822,3 +831,29 @@ def create_routes(app):
                 "updated_object": None,
                 "lap_time_added": False
             }), 200
+
+
+    @app.route('/games/skip', methods=['POST'])
+    @jwt_required()
+    def skip_object():
+        uid = int(get_jwt_identity())
+        data = request.get_json() or {}
+        participant_id = data.get("participant_id")
+        order_index   = data.get("order_index")
+
+        p = get_participant(db.session, participant_id)
+        if not p or p.user_id != uid:
+            return jsonify(error="Participant invalide"), 404
+
+        objects = p.objects_to_find or []
+        for o in objects:
+            if o["order_index"] == order_index:
+                o["skipped"] = True
+                break
+        else:
+            return jsonify(error="Objet non trouvé"), 400
+
+        # **CALL** à la fonction CRUD
+        update_participant_objects(db.session, participant_id, objects)
+
+        return jsonify(message=f"Objet #{order_index} skipped"), 200
