@@ -1,227 +1,252 @@
 import React, { useState, useEffect } from "react";
 import {
+  SafeAreaView,
   View,
   Text,
-  Button,
   StyleSheet,
   Image,
   Dimensions,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+  StatusBar,
 } from "react-native";
 import Svg, { Rect, Text as SvgText } from "react-native-svg";
+import { XCircle, CheckCircle } from "lucide-react-native";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const TOP_PADDING = Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
 
 export default function AnnotatedImagePage({ route, navigation }) {
   const { imageUri, detections, objectToPhotograph } = route.params;
-  console.log("Objet à photographier : ", objectToPhotograph);
-  const [objectDetected, setObjectDetected] = useState(false);
-  const [imageDimensions, setImageDimensions] = useState({
-    width: 1,
-    height: 1,
-    displayWidth: 1,
-    displayHeight: 1,
-  });
-  const [selectedDetection, setSelectedDetection] = useState(null);
-  const screenWidth = Dimensions.get("window").width;
-  const [showDetections, setShowDetections] = useState(false);
+  const [detected, setDetected] = useState(false);
+  const [dims, setDims] = useState({ w: 0, h: 0, dw: 0, dh: 0 });
+  const imageSizeRatio = 0.8;
+  const [selected, setSelected] = useState(null);
+  const [showList, setShowList] = useState(false);
 
   useEffect(() => {
     Image.getSize(
       imageUri,
-      (width, height) => {
-        const scaledHeight = (screenWidth / width) * height;
-
-        setImageDimensions({
-          width,
-          height,
-          displayWidth: screenWidth,
-          displayHeight: scaledHeight,
-        });
+      (w, h) => {
+        const dw = SCREEN_WIDTH;
+        const dh = (h / w) * SCREEN_WIDTH;
+        setDims({ w, h, dw, dh });
       },
-      (error) => {
-        console.error("Erreur lors du chargement de l’image :", error);
-      }
+      console.error
     );
   }, [imageUri]);
-  // Vérifie si l'objet du jour est détecté parmi les objets
-  useEffect(() => {
-    const objectFound = detections.some(
-      (detection) => detection.name === objectToPhotograph
-    );
-    setObjectDetected(objectFound);
-  }, [detections]);
-  const [highlightAll, setHighlightAll] = useState(false);
-  const getScaledCoordinates = (box) => {
-    const [x1, y1, x2, y2] = box;
-    const scaleX = imageDimensions.displayWidth / 3059.5;
-    const scaleY = imageDimensions.displayHeight / 4079.5;
 
-    return [x1 * scaleX, y1 * scaleY, x2 * scaleX, y2 * scaleY];
+  useEffect(() => {
+    setDetected(
+      detections.some((d) => d.object_name === objectToPhotograph)
+    );
+  }, [detections, objectToPhotograph]);
+
+  const scaleCoords = ([x1, y1, x2, y2]) => {
+    const sx = dims.dw / dims.w;
+    const sy = dims.dh / dims.h;
+    return [x1 * sx * imageSizeRatio, y1 * sy * imageSizeRatio, x2 * sx * imageSizeRatio, y2 * sy * imageSizeRatio];
   };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Image Annotée</Text>
+  // Wait until dimensions are calculated
+  if (dims.dw === 0 || dims.dh === 0) {
+    return (
+      <SafeAreaView style={[styles.safeArea, styles.centered]}>
+        <ActivityIndicator size="large" color="#EF4444" />
+      </SafeAreaView>
+    );
+  }
 
-      <View
-        style={{
-          width: imageDimensions.displayWidth,
-          height: imageDimensions.displayHeight,
-        }}
-      >
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <XCircle size={28} color="#374151" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Image Annotée</Text>
+        <View style={{ width: 28 }} />
+      </View>
+
+      <View style={[styles.imageWrapper, { width: dims.dw * imageSizeRatio, height: dims.dh * imageSizeRatio }]}>  
         <Image
           source={{ uri: imageUri }}
-          style={[
-            styles.image,
-            {
-              width: imageDimensions.displayWidth,
-              height: imageDimensions.displayHeight,
-            },
-          ]}
+          style={{ width: dims.dw * imageSizeRatio, height: dims.dh * imageSizeRatio }}
+          resizeMode="contain"
         />
-
-        {imageDimensions.displayWidth > 1 &&
-          imageDimensions.displayHeight > 1 && (
-            <Svg
-              width={imageDimensions.displayWidth}
-              height={imageDimensions.displayHeight}
-              style={styles.svg}
-            >
-              {detections.map((detection, index) => {
-                const [scaledX1, scaledY1, scaledX2, scaledY2] =
-                  getScaledCoordinates(detection.box);
-                // Vérifier si c'est l'objet que l'utilisateur doit photographier
-                const isTargetObject = detection.name === objectToPhotograph;
-                return (
-                  <React.Fragment key={index}>
-                    <Rect
-                      x={scaledX1}
-                      y={scaledY1}
-                      width={scaledX2 - scaledX1}
-                      height={scaledY2 - scaledY1}
-                      stroke={
-                        isTargetObject
-                          ? "green"
-                          : selectedDetection === index
-                          ? "yellow"
-                          : "red"
-                      }
-                      strokeWidth={
-                        isTargetObject ? 4 : selectedDetection === index ? 4 : 2
-                      }
-                      fill="none"
-                    />
-                    <SvgText
-                      x={scaledX1}
-                      y={Math.max(scaledY1 - 5, 15)}
-                      fontSize="14"
-                      fill="red"
-                      fontWeight="bold"
-                    >
-                      {`${detection.name} (${(detection.score * 100).toFixed(
-                        1
-                      )}%)`}
-                    </SvgText>
-                  </React.Fragment>
-                );
-              })}
-            </Svg>
-          )}
+        <Svg width={dims.dw} height={dims.dh} style={StyleSheet.absoluteFill}>
+          {detections.map((d, i) => {
+            const [x1, y1, x2, y2] = scaleCoords(d.bbox.box);
+            const isTarget = d.object_name === objectToPhotograph;
+            return (
+              <React.Fragment key={i}>
+                <Rect
+                  x={x1}
+                  y={y1}
+                  width={x2 - x1}
+                  height={y2 - y1}
+                  stroke={isTarget ? "#10B981" : selected === i ? "#FBBF24" : "#EF4444"}
+                  strokeWidth={isTarget || selected === i ? 3 : 2}
+                  fill="none"
+                />
+                <SvgText
+                  x={x1}
+                  y={y1 - 6}
+                  fontSize="12"
+                  fill={isTarget ? "#10B981" : "#EF4444"}
+                  fontWeight="600"
+                >
+                  {`${d.object_name} ${(d.confidence * 100).toFixed(0)}%`}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
+        </Svg>
       </View>
-      {/* Vérification de l'objet détecté */}
-      {objectDetected ? (
-        <Text style={{ color: "green", fontSize: 11 }}>
-          ✅ Bravo ! {objectToPhotograph} détecté !
-        </Text>
-      ) : (
-        <>
-          <Text style={{ color: "red", fontSize: 11 }}>
-            ❌ {objectToPhotograph} non détecté.
-          </Text>
-          <Button title="Réessayer" onPress={() => navigation.goBack()} />
-        </>
-      )}
-      {/* Bouton pour afficher/masquer la liste */}
-      <Button
-        title={
-          showDetections
-            ? "Masquer les objets détectés"
-            : "Voir les objets détectés"
-        }
-        onPress={() => setShowDetections(!showDetections)}
-      />
 
-      {/* Affichage conditionnel de la liste */}
-      {showDetections && (
-        <FlatList
-          data={detections}
-          keyExtractor={(item) => item.name + item.score}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity onPress={() => setSelectedDetection(index)}>
-              <View
-                style={[
-                  styles.listItem,
-                  selectedDetection === index && styles.selectedItem,
-                ]}
-              >
-                <Text style={styles.objectName}>{item.name}</Text>
-                <Text style={styles.probability}>
-                  {(item.score * 100).toFixed(1)}%
-                </Text>
-              </View>
-            </TouchableOpacity>
-          )}
-        />
+      <View style={styles.statusRow}>
+        {detected ? (
+          <CheckCircle size={22} color="#10B981" />
+        ) : (
+          <XCircle size={22} color="#EF4444" />
+        )}
+        <Text style={[styles.statusText, detected ? styles.success : styles.error]}>  
+          {detected
+            ? `Bravo ! ${objectToPhotograph} détecté !`
+            : `Dommage, ${objectToPhotograph} non détecté.`}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={[styles.button, styles.retryButton]}
+        onPress={() => navigation.goBack()}
+      >
+        <Text style={styles.buttonText}>Réessayer</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.toggleButton]}
+        onPress={() => setShowList((v) => !v)}
+      >
+        <Text style={styles.buttonText}>
+          {showList ? "Masquer résultats" : "Voir tous"}
+        </Text>
+      </TouchableOpacity>
+
+      {showList && (
+        <View style={styles.listContainer}>
+          <FlatList
+            data={detections}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item, index }) => (
+              <TouchableOpacity onPress={() => setSelected(index)}>
+                <View
+                  style={[
+                    styles.listItem,
+                    selected === index && styles.listItemActive,
+                  ]}
+                >
+                  <Text style={styles.itemName}>{item.object_name}</Text>
+                  <Text style={styles.itemConf}>
+                    {(item.confidence * 100).toFixed(0)}%
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    paddingBottom: 20,
-    alignItems: "center",
+    backgroundColor: '#F3F4F6',
+    paddingTop: TOP_PADDING + 12,
   },
-  title: {
-    textAlign: "center",
-    fontSize: 24,
-    fontWeight: "bold",
-    marginVertical: 10,
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  image: {
-    backgroundColor: "#eee",
-    alignSelf: "center",
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
-  svg: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-  },
-  listTitle: {
+  headerTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    marginTop: 10,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  imageWrapper: {
+    alignSelf: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#DDD',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  statusText: {
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  success: {
+    color: '#10B981',
+  },
+  error: {
+    color: '#EF4444',
+  },
+  button: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    paddingVertical: 12,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#EF4444',
+  },
+  toggleButton: {
+    backgroundColor: '#374151',
+  },
+  buttonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  listContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    marginTop: 8,
   },
   listItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: 10,
-    marginHorizontal: 10,
-    backgroundColor: "#f2f2f2",
-    borderRadius: 5,
-    marginTop: 5,
-    width: "90%",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    marginBottom: 8,
   },
-  selectedItem: {
-    backgroundColor: "#ffd700",
+  listItemActive: {
+    backgroundColor: '#FEF3C7',
   },
-  objectName: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  probability: {
+  itemName: {
     fontSize: 16,
-    color: "green",
+    fontWeight: '600',
+  },
+  itemConf: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });

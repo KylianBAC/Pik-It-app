@@ -7,6 +7,7 @@ from flask import current_app  # Pour obtenir le chemin racine de l'app
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import uuid
+import uuid
 from datetime import datetime
 import uuid
 import random
@@ -204,8 +205,6 @@ def create_routes(app):
         if file.filename == "":
             return jsonify({"error": "Empty filename"}), 400
 
-        # Sécuriser le nom du fichier
-
         ext = os.path.splitext(secure_filename(file.filename))[1]
         unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
 
@@ -215,6 +214,7 @@ def create_routes(app):
         save_path = os.path.join(uploads_dir, unique_name)
         file.save(save_path)
 
+        file_url = f"/static/uploads/{unique_name}"
         file_url = f"/static/uploads/{unique_name}"
 
         # Sauvegarde en BDD de l'URL de la photo (image_url)
@@ -238,11 +238,16 @@ def create_routes(app):
         ext = os.path.splitext(secure_filename(file.filename))[1]
         unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
 
+        ext = os.path.splitext(secure_filename(file.filename))[1]
+        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+
         uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
         os.makedirs(uploads_dir, exist_ok=True)
         file_path = os.path.join(uploads_dir, unique_name)
+        file_path = os.path.join(uploads_dir, unique_name)
         file.save(file_path)
 
+        file_url = f"/static/uploads/{unique_name}"
         file_url = f"/static/uploads/{unique_name}"
         image = Image.open(file_path).convert('RGB')
 

@@ -1,189 +1,126 @@
 import React, { useRef, useState } from "react";
 import {
+  SafeAreaView,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Dimensions,
+  Platform,
+  StatusBar,
 } from "react-native";
-import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import axios from "axios";
+import { useIsFocused } from '@react-navigation/native';
+import { XCircle, Camera  } from "lucide-react-native";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImageManipulator from "expo-image-manipulator";
+import { apiClient } from "../api/auth";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const ASPECT_RATIO = 4 / 3;
+const PREVIEW_HEIGHT = SCREEN_WIDTH * ASPECT_RATIO;
+const TARGET_WIDTH = 1080;
 
-export default function CameraScreen({ route,navigation }) {
-  const { objectToPhotograph } = route.params;  // Récupère l'objet à photographier
-  const { facing, setFacing } = useState < CameraType > "back";
+export default function CameraScreen({ route, navigation }) {
+  const { objectToPhotograph, challengeId } = route.params;
+  const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
   const [isUploading, setIsUploading] = useState(false);
   const cameraRef = useRef(null);
 
-  if (!permission) {
-    // Les permissions de la caméra sont en cours de chargement
-    return <View />;
-  }
-
+  if (!permission) return <View style={styles.centered}><ActivityIndicator color="#fff" /></View>;
   if (!permission.granted) {
-    // Les permissions de la caméra ne sont pas encore accordées
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <Text style={styles.message}>
           Nous avons besoin de votre autorisation pour utiliser la caméra.
         </Text>
         <TouchableOpacity style={styles.button} onPress={requestPermission}>
           <Text style={styles.buttonText}>Accorder l'autorisation</Text>
         </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     );
   }
 
-  // Fonction pour basculer entre les caméras avant et arrière
-  function toggleCameraFacing() {
-    setFacing((current) => (current === "back" ? "front" : "back"));
-  }
-
-  // Fonction pour capturer une photo
-  async function takePhoto() {
-    if (cameraRef.current) {
-      try {
-        const photo = await cameraRef.current.takePictureAsync({
-          base64: true,
-        });
-
-        // Envoi de l'image à l'API
-        uploadPhoto(photo);
-      } catch (error) {
-        console.error("Erreur lors de la prise de photo :", error);
-        Alert.alert(
-          "Erreur",
-          "Une erreur s'est produite lors de la prise de la photo."
-        );
-      }
-    }
-  }
-
-  // Fonction pour envoyer la photo à l'API
-  async function uploadPhoto(photo) {
-    setIsUploading(true);
-
-    const apiUrl = "http://192.168.1.123:5000/detect"; // Remplacez par l'URL de votre API
-    const formData = new FormData();
-
-    formData.append("file", {
-      uri: photo.uri,
-      name: `photo.jpg`,
-      type: `image/jpeg`,
-    });
-
+  const takePhoto = async () => {
+    if (!cameraRef.current) return;
     try {
-      const response = await axios.post(apiUrl, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+      const photo = await cameraRef.current.takePictureAsync({
+        base64: false,
+        quality: 1,
+        skipProcessing: false,
       });
-
-      Alert.alert("Succès", "Photo envoyée avec succès !", [
-        {
-          text: "OK",
-          onPress: () => {
-            // Naviguer vers la page de l'image annotée avec les résultats
-            navigation.navigate("AnnotatedImage", {
-              imageUri: photo.uri,
-              detections: response.data.detections,
-              objectToPhotograph: objectToPhotograph
-            });
-          },
-        },
-      ]);
-      console.log("Réponse de l'API :", response.data.detections);
-    } catch (error) {
-      console.error("Erreur lors de l'envoi de la photo :", error);
-      Alert.alert(
-        "Erreur",
-        "Une erreur s'est produite lors de l'envoi de la photo."
+      const resized = await ImageManipulator.manipulateAsync(
+        photo.uri,
+        [{ resize: { width: TARGET_WIDTH } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
+      uploadPhoto(resized);
+    } catch (error) {
+      Alert.alert("Erreur", "Erreur lors de la prise de la photo.");
+    }
+  };
+
+  const uploadPhoto = async (photo) => {
+    setIsUploading(true);
+    try {
+      const client = await apiClient();
+      const formData = new FormData();
+      formData.append("file", { uri: photo.uri, name: "photo.jpg", type: "image/jpeg" });
+      if (challengeId) formData.append("challenge_id", String(challengeId));
+      const response = await client.post("/photos/detect", formData, { headers: { "Content-Type": "multipart/form-data" } });
+      navigation.navigate("AnnotatedImage", { imageUri: photo.uri, detections: response.data.detections, objectToPhotograph });
+    } catch {
+      Alert.alert("Erreur", "Erreur lors de l'envoi de la photo.");
     } finally {
       setIsUploading(false);
     }
-  }
+  };
+
+  const topPadding = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
   return (
-    <View style={styles.container}>
-      
-      <CameraView
-        ref={cameraRef}
-        style={styles.camera}
-        facing={facing}
-        ratio="4:3" 
-        onCameraReady={() => console.log("Caméra prête")}
-      >
-        <Text style={styles.objectName}>Objet à prendre en photo : {objectToPhotograph}</Text>
-        <View style={styles.overlay}>
-          <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
-            <Text style={styles.buttonText}>Changer de caméra</Text>
-          </TouchableOpacity>
-        </View>
-      </CameraView>
+    <SafeAreaView style={[styles.container, { paddingTop: topPadding + 16 }]}>      
+      {/* Back Button */}
+      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <XCircle size={28} color="#fff" />
+      </TouchableOpacity>
 
+      {/* Object name above preview */}
+      <View style={styles.titleContainer}>
+        <Text style={styles.objectNameText}>Objet : {objectToPhotograph}</Text>
+      </View>
+
+      {/* Camera Preview shifted down */}
+      <View style={styles.previewWrapper}>
+        {isFocused && (
+          <CameraView ref={cameraRef} style={styles.camera} ratio="4:3" onCameraReady={() => {}} />
+        )}
+      </View>
+
+      {/* Capture Button */}
       <View style={styles.controls}>
         <TouchableOpacity style={styles.captureButton} onPress={takePhoto}>
-          {isUploading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.captureButtonText}>Capturer</Text>
-          )}
+          {isUploading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.captureText}><Camera size={34} color="#fff" /></Text>}
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    backgroundColor: "#000",
-  },
-  camera: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    margin: 20,
-  },
-  objectName: {
-    color: "rgba(255, 255, 255, 1)",
-  },
-  button: {
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    padding: 10,
-    borderRadius: 5,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-  },
-  controls: {
-    backgroundColor: "#000",
-    alignItems: "center",
-    padding: 10,
-  },
-  captureButton: {
-    backgroundColor: "#ff5722",
-    padding: 15,
-    borderRadius: 50,
-    alignItems: "center",
-  },
-  captureButtonText: {
-    color: "#fff",
-    fontSize: 16,
-  },
-  message: {
-    textAlign: "center",
-    color: "#fff",
-    paddingBottom: 20,
-  },
+  container: { flex:1, backgroundColor:'#000' },
+  centered: { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#000' },
+  backBtn: { position:'absolute', top: Platform.OS==='android'? StatusBar.currentHeight+16:16, left:16, zIndex:10 },
+  titleContainer: { marginTop: Platform.OS==='android'? StatusBar.currentHeight+26:26, alignItems:'center' },
+  objectNameText: { color:'#fff', fontSize:20, fontWeight:'600', backgroundColor:'rgba(0,0,0,0.5)', padding:8, borderRadius:8 },
+  previewWrapper: { alignSelf:'center', marginTop:16, width:SCREEN_WIDTH, height: PREVIEW_HEIGHT, overflow:'hidden'},
+  camera: { width:'100%', height:'100%' },
+  controls: { flex:1, justifyContent:'center', alignItems:'center' },
+  captureButton: { backgroundColor:'#ff5722', padding:20, borderRadius:50 },
+  captureText: { color:'#fff', fontSize:24 },
+  message: { textAlign:'center', color:'#fff', padding:20 },
+  button: { backgroundColor:'rgba(0,0,0,0.7)', padding:10, borderRadius:5 },
+  buttonText: { color:'#fff', fontSize:16 },
 });
