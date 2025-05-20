@@ -1,7 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = 'http://10.134.200.34:5000';
+const API_URL = 'http://10.134.200.98:5000';
 // const API_URL = 'http://192.168.1.224:5000'; 
 
 // Enregistrer un nouvel utilisateur
