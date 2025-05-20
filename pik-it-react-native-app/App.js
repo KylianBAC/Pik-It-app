@@ -9,6 +9,7 @@ import CameraScreen from './screens/CameraScreen';
 import AnnotatedImagePage from './screens/AnnotatedImagePage';
 import DefisScreen from './screens/DefisScreen';
 import BattleScreen from './screens/BattleScreen';
+import BattleLobbyScreen from './screens/BattleLobbyScreen';
 import SearchScreen from './screens/SearchScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
@@ -28,7 +29,7 @@ export default function App() {
           return (
             <NavigationContainer>
               <Stack.Navigator screenOptions={{ headerShown: false }}>
-                {userToken != null ? (
+                {userToken == null ? (
                   // Écrans d'authentification
                   <>
                     <Stack.Screen name="Login" component={LoginScreen} />
@@ -42,6 +43,7 @@ export default function App() {
                     <Stack.Screen name="AnnotatedImage" component={AnnotatedImagePage} />
                     <Stack.Screen name="DefisScreen" component={DefisScreen} />
                     <Stack.Screen name="BattleScreen" component={BattleScreen} />
+                    <Stack.Screen name="BattleLobbyScreen" component={BattleLobbyScreen} />
                     <Stack.Screen name="SearchScreen" component={SearchScreen} />
                     <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
                     <Stack.Screen name="SettingsScreen" component={SettingsScreen} />

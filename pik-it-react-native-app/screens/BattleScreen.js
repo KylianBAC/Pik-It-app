@@ -7,9 +7,11 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
-import { Search, Filter, Home, Trophy, User } from 'lucide-react-native';
+import { Search, Filter, User } from 'lucide-react-native';
 import NavBar from '../components/navbar';
+import { apiClient } from '../api/auth';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -18,11 +20,42 @@ const mockSuggested = [
   { id: '2', name: 'Art', count: 4 },
 ];
 
-const mockTagsInitial = ['Nature', 'Musique', 'Art', 'Mode 1'];
-
-const BattleScreen = ({ navigation }) => {
+export default function BattleScreen({ navigation }) {
   const [searchText, setSearchText] = useState('');
-  const [tags, setTags] = useState(mockTagsInitial);
+  const [tags, setTags] = useState(['Nature', 'Musique', 'Art', 'Mode']);
+  const [roomCode, setRoomCode] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+
+  const createGame = async () => {
+    setIsCreating(true);
+    try {
+      const client = await apiClient();
+      const resp = await client.post('/games/host', { max_players: 4, max_objects: 5 });
+      navigation.navigate('BattleLobbyScreen', { gameId: resp.data.game_id, code: resp.data.code, isCreator: true });
+    } catch (e) {
+      console.error(e);
+      alert('Erreur création de partie');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const joinGame = async () => {
+    if (!roomCode) return alert('Entrez un code');
+    setIsJoining(true);
+    try {
+      const client = await apiClient();
+      const resp = await client.post('/games/join', { code: roomCode });
+      console.log("test :", resp.data);
+      navigation.navigate('BattleLobbyScreen', { gameId: resp.data.game_id, participantId: resp.data.participant_id });
+    } catch (e) {
+      console.error(e);
+      alert(e.response?.data?.error || 'Échec de la jonction');
+    } finally {
+      setIsJoining(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -38,12 +71,28 @@ const BattleScreen = ({ navigation }) => {
 
         {/* Actions */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={[styles.actionBtn, styles.createBtn]}>  
-            <Text style={styles.createTxt}>Créer une partie</Text>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.createBtn]}
+            onPress={createGame}
+            disabled={isCreating}
+          >
+            {isCreating ? <ActivityIndicator color="#fff"/> : <Text style={styles.createTxt}>Créer une partie</Text>}
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.joinBtn]}>  
-            <Text style={styles.joinTxt}>Rejoindre une partie</Text>
-          </TouchableOpacity>
+          <View style={styles.joinContainer}>
+            <TextInput
+              style={styles.joinInput}
+              placeholder="Code…"
+              value={roomCode}
+              onChangeText={setRoomCode}
+            />
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.joinBtn]}
+              onPress={joinGame}
+              disabled={isJoining}
+            >
+              {isJoining ? <ActivityIndicator /> : <Text style={styles.joinTxt}>Rejoindre</Text>}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Section */}
@@ -70,7 +119,9 @@ const BattleScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
             ))}
-            <View style={styles.tagItemPlus}><Text style={styles.tagText}>+{tags.length - 4}</Text></View>
+            {tags.length > 4 && (
+              <View style={styles.tagItemPlus}><Text style={styles.tagText}>+{tags.length - 4}</Text></View>
+            )}
           </View>
         </View>
 
@@ -79,9 +130,14 @@ const BattleScreen = ({ navigation }) => {
         <View style={styles.suggestedRow}>
           {mockSuggested.map((item) => (
             <View key={item.id} style={styles.suggestedCard}>
-              <View style={styles.suggestedIcon}><Text style={styles.suggestedCount}>{item.count}</Text><User size={16} /></View>
+              <View style={styles.suggestedIcon}>
+                <Text style={styles.suggestedCount}>{item.count}</Text>
+                <User size={16} />
+              </View>
               <Text style={styles.suggestedName}>{item.name}</Text>
-              <TouchableOpacity style={styles.suggestedJoin}><Text>Rejoindre</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.suggestedJoin} onPress={() => {/* join theme */}}>
+                <Text>Rejoindre</Text>
+              </TouchableOpacity>
             </View>
           ))}
         </View>
@@ -104,20 +160,22 @@ const BattleScreen = ({ navigation }) => {
       <NavBar onAddPress={() => navigation.navigate('Camera', { objectToPhotograph: '' })} />
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   scrollContent: { paddingBottom: 100 },
-  headerBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: '#F3F4F6' },
+  headerBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   headerTitle: { fontSize: 20, fontWeight: '900' },
   statsRow: { flexDirection: 'row' },
   statBadge: { backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginLeft: 8 },
   coinBadge: { backgroundColor: '#FCD34D' },
   statText: { fontWeight: '600' },
-  actionsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginVertical: 16 },
+  actionsRow: { paddingHorizontal: 16, marginVertical: 16 },
   actionBtn: { flex: 1, padding: 12, borderRadius: 24, alignItems: 'center', marginHorizontal: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
   createBtn: { backgroundColor: '#F87171' },
+  joinContainer: { flexDirection: 'row', alignItems: 'center' },
+  joinInput: { flex: 1, backgroundColor: '#E5E7EB', borderRadius: 24, paddingHorizontal: 12, marginRight: 8, height: 40 },
   joinBtn: { backgroundColor: '#FCD34D' },
   createTxt: { color: '#FFF', fontWeight: '600' },
   joinTxt: { color: '#000', fontWeight: '600' },
@@ -145,5 +203,3 @@ const styles = StyleSheet.create({
   friendAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#D1D5DB', marginBottom: 4 },
   friendName: { fontSize: 12 },
 });
-
-export default BattleScreen;

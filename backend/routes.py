@@ -622,12 +622,15 @@ def create_routes(app):
             if provided_password != game.password:
                 return jsonify(error='Invalid password'), 401
         current_parts = list_participants(db.session, game.id)
-        if any(p.user_id == uid for p in current_parts):
-            return jsonify(error='You are already in this game'), 400
+        for p in current_parts :
+            if p.user_id == uid :
+                print(f"User {uid} is already in the game {game.id} as participant {p.id}")
+                return jsonify(game_id=game.id, participant_id=p.id), 201
         if len(current_parts) >= game.max_players:
             return jsonify(error='Game is already full'), 400
         part = add_participant(db.session, game.id, uid)
-        return jsonify(participant_id=part.id), 200
+        print(f"User {uid} joined game {game.id} as participant {part.id}")
+        return jsonify(game_id=game.id, participant_id=part.id), 200
 
     # Récupérer par game_id
     @app.route('/games/id/<int:game_id>', methods=['GET'])
