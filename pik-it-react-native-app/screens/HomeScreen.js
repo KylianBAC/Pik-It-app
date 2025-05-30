@@ -15,7 +15,6 @@ const HomeScreen = ({ navigation }) => {
     (async () => {
       try {
         const dateStr = new Date().toISOString().split('T')[0];
-        console.log(dateStr);
         const client = await apiClient();
         const response = await client.get(`/quests/${dateStr}`);
         setDailyQuest(response.data);

@@ -10,6 +10,8 @@ import AnnotatedImagePage from './screens/AnnotatedImagePage';
 import DefisScreen from './screens/DefisScreen';
 import BattleScreen from './screens/BattleScreen';
 import BattleLobbyScreen from './screens/BattleLobbyScreen';
+import BattleGameScreen from './screens/BattleGameScreen';
+import BattleCameraScreen from './screens/BattleCameraScreen';
 import SearchScreen from './screens/SearchScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
@@ -44,6 +46,8 @@ export default function App() {
                     <Stack.Screen name="DefisScreen" component={DefisScreen} />
                     <Stack.Screen name="BattleScreen" component={BattleScreen} />
                     <Stack.Screen name="BattleLobbyScreen" component={BattleLobbyScreen} />
+                    <Stack.Screen name="BattleGameScreen" component={BattleGameScreen} />
+                    <Stack.Screen name="BattleCameraScreen" component={BattleCameraScreen} />
                     <Stack.Screen name="SearchScreen" component={SearchScreen} />
                     <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
                     <Stack.Screen name="SettingsScreen" component={SettingsScreen} />

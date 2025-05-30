@@ -47,8 +47,7 @@ export default function BattleScreen({ navigation }) {
     try {
       const client = await apiClient();
       const resp = await client.post('/games/join', { code: roomCode });
-      console.log("test :", resp.data);
-      navigation.navigate('BattleLobbyScreen', { gameId: resp.data.game_id, participantId: resp.data.participant_id });
+      navigation.navigate('BattleLobbyScreen', { gameId: resp.data.game_id, code:roomCode, participantId: resp.data.participant_id });
     } catch (e) {
       console.error(e);
       alert(e.response?.data?.error || 'Échec de la jonction');

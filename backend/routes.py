@@ -718,6 +718,8 @@ def create_routes(app):
         participant_id = request.form.get("participant_id")
         start_time = request.form.get("start_time")
         end_time = request.form.get("end_time")
+        # Vérification des champs requis
+        print(participant_id, start_time, end_time)
 
         if not all([participant_id, start_time, end_time]):
             return jsonify({"error": "participant_id, start_time, end_time requis"}), 400
@@ -746,10 +748,12 @@ def create_routes(app):
 
         # Vérification de fichier
         if 'file' not in request.files:
+            print("test1")
             return jsonify({"error": "Aucun fichier envoyé"}), 400
 
         file = request.files['file']
         if file.filename == "":
+            print("test2")
             return jsonify({"error": "Nom de fichier vide"}), 400
 
         # Enregistrement de la photo
