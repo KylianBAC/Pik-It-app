@@ -24,9 +24,9 @@ export default function BattleLobbyScreen({ route, navigation }) {
       const client = await apiClient();
       const res = await client.get(`/games/id/${gameId}`);
       setGameInfo(res.data);
-      console.log(gameId);
-      console.log(res.data.status);
-      console.log(res.data.id);
+      // console.log(gameId);
+      // console.log(res.data.status);
+      // console.log(res.data.id);
       if (res.data.status === "in_progress") {
         navigation.replace("BattleGameScreen", { gameId });
       }

@@ -2,10 +2,11 @@
 
 ## Consignes pour ceux qui bossent sur le Frontend
 ``Allez sur la branche 'Frontend' si nous ne l'êtes pas encore.``
- Le backend ne fonctionnera pas, il faudrait que vous créiez un fichier .env à la racine du projet et que vous y mettiez les variables de la base de données (que vous devez aussi créer). Tout expliquer prendrait trop de temps actuellement et vous devriez pouvoir bosser dessus sans ça. Vous pouvez vous contenter de lancer le frontent. Il y aura quelques erreurs mais vous pourrez travailler dessus. Si vous avez des questions, n'hésitez pas à me les poser.
+ <!-- Le backend ne fonctionnera pas, il faudrait que vous créiez un fichier .env à la racine du projet et que vous y mettiez les variables de la base de données (que vous devez aussi créer). Tout expliquer prendrait trop de temps actuellement et vous devriez pouvoir bosser dessus sans ça. Vous pouvez vous contenter de lancer le frontent. Il y aura quelques erreurs mais vous pourrez travailler dessus. Si vous avez des questions, n'hésitez pas à me les poser. -->
 
 ## Installation
 ### Backend
+#### Il n'y a pas besoin de l'installer ni de le lancer, le back est lancé sur un serveur distant.
 ```bash
 cd backend
 ```
@@ -32,7 +33,7 @@ npm install
 ```
 #### Lancement de l'app
 ```bash
-nxp expo start
+npx expo start
 ```
 
 Et normalement votre frontend s'ouvre. Dites le moi s'il y a un problème.
