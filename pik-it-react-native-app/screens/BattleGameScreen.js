@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { apiClient } from "../api/auth";
 import { XCircle, ArrowRightCircle } from "lucide-react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function BattleGameScreen({ route, navigation }) {
   const { gameId } = route.params;
@@ -125,7 +126,7 @@ export default function BattleGameScreen({ route, navigation }) {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.title}>À trouver :</Text>
       {nextObj ? (
         <Text style={styles.current}>🎯 {nextObj.objectname}</Text>
@@ -164,7 +165,7 @@ export default function BattleGameScreen({ route, navigation }) {
       >
         <Text style={styles.quitTxt}>Quitter</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 

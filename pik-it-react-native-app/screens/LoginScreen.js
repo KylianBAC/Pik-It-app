@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { login } from '../api/auth';
 import { AuthContext } from '../context/AuthContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
@@ -18,13 +19,13 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Connexion</Text>
       <TextInput placeholder="Nom d'utilisateur" value={username} onChangeText={setUsername} style={styles.input} />
       <TextInput placeholder="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
       <TouchableOpacity onPress={onLogin} style={styles.button}><Text style={styles.buttonText}>Se connecter</Text></TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate('Register')}><Text style={styles.link}>Pas de compte ? Inscris-toi</Text></TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 

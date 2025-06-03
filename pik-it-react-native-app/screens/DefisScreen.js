@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { Home, Trophy, Search, User } from 'lucide-react-native';
 import NavBar from '../components/navbar';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -38,7 +40,7 @@ const DefisScreen = ({ navigation }) => {
   ];
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.headerContainer}>
@@ -106,7 +108,7 @@ const DefisScreen = ({ navigation }) => {
 
       {/* NavBar */}
       <NavBar onAddPress={() => navigation.navigate('Camera', { objectToPhotograph: '' })} />
-    </View>
+    </SafeAreaView>
   );
 };
 

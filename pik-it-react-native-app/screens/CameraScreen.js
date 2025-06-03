@@ -1,6 +1,5 @@
 import React, { useRef, useState } from "react";
 import {
-  SafeAreaView,
   View,
   Text,
   TouchableOpacity,
@@ -11,6 +10,7 @@ import {
   Platform,
   StatusBar,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { XCircle, Camera  } from "lucide-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";

@@ -9,6 +9,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Filter, User } from 'lucide-react-native';
 import NavBar from '../components/navbar';
 import { apiClient } from '../api/auth';
@@ -57,7 +58,7 @@ export default function BattleScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.headerBar}>
@@ -157,7 +158,7 @@ export default function BattleScreen({ navigation }) {
       </ScrollView>
 
       <NavBar onAddPress={() => navigation.navigate('Camera', { objectToPhotograph: '' })} />
-    </View>
+    </SafeAreaView>
   );
 }
 

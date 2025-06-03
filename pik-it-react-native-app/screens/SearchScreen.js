@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Search, MessageSquare, Heart, Share2 } from 'lucide-react-native';
 import NavBar from '../components/navbar';
 
@@ -52,16 +54,6 @@ const SearchScreen = ({ navigation }) => {
 
   const renderHeader = () => (
     <>
-      {/* Status Bar Simulation */}
-      <View style={styles.topBar}>
-        <Text style={styles.time}>4:20</Text>
-        <View style={styles.statusIcons}>
-          <Text>•••</Text>
-          <Text>📶</Text>
-          <Text>🔋</Text>
-        </View>
-      </View>
-
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>EXPLORER</Text>
@@ -131,7 +123,7 @@ const SearchScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <FlatList
         data={mockPosts}
         keyExtractor={(item) => item.id}
@@ -141,7 +133,7 @@ const SearchScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       />
       <NavBar onAddPress={() => navigation.navigate('Camera', { objectToPhotograph: '' })} />
-    </View>
+    </SafeAreaView>
   );
 };
 
