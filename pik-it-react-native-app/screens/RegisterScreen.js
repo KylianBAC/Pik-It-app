@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { register } from '../api/auth';
 
 export default function RegisterScreen({ navigation }) {
@@ -19,14 +20,14 @@ export default function RegisterScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Inscription</Text>
       <TextInput placeholder="Nom d'utilisateur" value={username} onChangeText={setUsername} style={styles.input} />
       <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={styles.input} keyboardType="email-address" />
       <TextInput placeholder="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
       <TouchableOpacity onPress={onRegister} style={styles.button}><Text style={styles.buttonText}>S'inscrire</Text></TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate('Login')}><Text style={styles.link}>Déjà un compte ? Connectez-vous</Text></TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 

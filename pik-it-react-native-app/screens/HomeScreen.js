@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, FlatList, Dimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, FlatList, Dimensions} from 'react-native';
 import { X, Check } from 'lucide-react-native';
 import NavBar from '../components/navbar';
 import { apiClient } from '../api/auth';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -76,7 +77,7 @@ const HomeScreen = ({ navigation }) => {
   ];
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>PIK<Text style={styles.titleStar}>*</Text>IT</Text>
@@ -153,7 +154,7 @@ const HomeScreen = ({ navigation }) => {
 
       {/* Navigation bar */}
       <NavBar onAddPress={() => navigation.navigate('Camera', { objectToPhotograph: dailyObject, challengeId: questId })} />
-    </View>
+    </SafeAreaView>
   );
 };
 

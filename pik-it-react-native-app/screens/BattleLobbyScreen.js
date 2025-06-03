@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TextInput,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from "../api/auth";
 import { XCircle, Users, Lock } from "lucide-react-native";
 
@@ -75,7 +76,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Lobby</Text>
         <Text style={styles.code}>Code: {code}</Text>
@@ -129,7 +130,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
       >
         <Text style={styles.backText}>Retour</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 

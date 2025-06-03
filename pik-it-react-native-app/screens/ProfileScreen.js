@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Settings, User, Edit, BookOpen, Home, Award, Search } from 'lucide-react-native';
 import NavBar from '../components/navbar';
 
@@ -24,7 +25,7 @@ const ProfileScreen = ({ navigation }) => {
   const lockedBadges = Array(2).fill(0);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Banner */}
         <View style={styles.bannerContainer}>
@@ -129,7 +130,7 @@ const ProfileScreen = ({ navigation }) => {
 
       {/* NavBar */}
       <NavBar onAddPress={() => navigation.navigate('Camera', { objectToPhotograph: '' })} />
-    </View>
+    </SafeAreaView>
   );
 };
 
