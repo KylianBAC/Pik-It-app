@@ -9,10 +9,11 @@ import {
   Dimensions,
   Platform,
   StatusBar,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
-import { XCircle, Camera as CameraIcon } from "lucide-react-native";
+import { XCircle, Camera as CameraIcon, CheckCircle, AlertCircle } from "lucide-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import { apiClient } from "../api/auth";
@@ -27,6 +28,8 @@ export default function BattleCameraScreen({ route, navigation }) {
   const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
   const [isUploading, setIsUploading] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [detectionResult, setDetectionResult] = useState(null);
   const cameraRef = useRef(null);
 
   if (!permission) return <View style={styles.centered}><ActivityIndicator color="#fff" /></View>;
@@ -72,24 +75,34 @@ export default function BattleCameraScreen({ route, navigation }) {
       formData.append("participant_id", String(participantId));
       formData.append("start_time", now);
       formData.append("end_time", now);
+      
       const response = await client.post(
         "/games/detect",
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
-      // On peut naviguer vers l'écran d'annotation ou de résultat
-      navigation.navigate("BattleGameScreen", {
-        gameId:gameId,
-        detections: response.data.detections,
-        updatedObject: response.data.updated_object,
-        gameFinished: response.data.game_finished
+      
+      // Stocke le résultat et affiche la modal
+      setDetectionResult({
+        message: response.data.message,
+        found: response.data.updated_object !== null,
+        gameFinished: response.data.game_finished,
+        detections: response.data.detections
       });
+      setShowResult(true);
+      
     } catch (e) {
       console.error(e);
       Alert.alert("Erreur", "Erreur lors de l'envoi de la photo.");
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleResultClose = () => {
+    setShowResult(false);
+    // Retourne à l'écran de jeu après avoir fermé la modal
+    navigation.navigate("BattleGameScreen", { gameId });
   };
 
   const topPadding = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
@@ -119,6 +132,64 @@ export default function BattleCameraScreen({ route, navigation }) {
           {isUploading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.captureText}><CameraIcon size={34} color="#fff" /></Text>}
         </TouchableOpacity>
       </View>
+
+      {/* Result Modal */}
+      <Modal
+        visible={showResult}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleResultClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.resultHeader}>
+              {detectionResult?.found ? (
+                <CheckCircle size={64} color="#10B981" />
+              ) : (
+                <AlertCircle size={64} color="#F59E0B" />
+              )}
+            </View>
+            
+            <Text style={styles.resultTitle}>
+              {detectionResult?.found ? "🎉 Bravo !" : "😔 Pas trouvé"}
+            </Text>
+            
+            <Text style={styles.resultMessage}>
+              {detectionResult?.message}
+            </Text>
+
+            {detectionResult?.found && (
+              <Text style={styles.successText}>
+                L'objet "{objectToPhotograph}" a été validé !
+              </Text>
+            )}
+
+            {detectionResult?.gameFinished && (
+              <Text style={styles.gameFinishedText}>
+                🏆 Partie terminée ! Félicitations !
+              </Text>
+            )}
+
+            {/* Détections trouvées */}
+            {detectionResult?.detections && detectionResult.detections.length > 0 && (
+              <View style={styles.detectionsContainer}>
+                <Text style={styles.detectionsTitle}>Objets détectés :</Text>
+                {detectionResult.detections.slice(0, 3).map((detection, index) => (
+                  <Text key={index} style={styles.detectionItem}>
+                    • {detection.object_name} ({Math.round(detection.confidence * 100)}%)
+                  </Text>
+                ))}
+              </View>
+            )}
+
+            <TouchableOpacity style={styles.resultButton} onPress={handleResultClose}>
+              <Text style={styles.resultButtonText}>
+                {detectionResult?.gameFinished ? "Voir les résultats" : "Continuer"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -137,4 +208,81 @@ const styles = StyleSheet.create({
   message: { textAlign:'center', color:'#fff', padding:20 },
   button: { backgroundColor:'rgba(0,0,0,0.7)', padding:10, borderRadius:5 },
   buttonText: { color:'#fff', fontSize:16 },
+  
+  // Styles pour la modal de résultat
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    maxWidth: 340,
+    width: '100%',
+  },
+  resultHeader: {
+    marginBottom: 20,
+  },
+  resultTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  resultMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#6B7280',
+    marginBottom: 16,
+  },
+  successText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#10B981',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  gameFinishedText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  detectionsContainer: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    width: '100%',
+  },
+  detectionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    color: '#374151',
+  },
+  detectionItem: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  resultButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 25,
+    minWidth: 120,
+  },
+  resultButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });

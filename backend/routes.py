@@ -65,7 +65,7 @@ def create_routes(app):
         user = get_user(db.session, user_id)
         if not user:
             return jsonify({"error": "User not found"}), 404
-        return jsonify({"id": user.id, "username": user.username, "points": user.points})
+        return jsonify({"id": user.id, "username": user.username, "points": user.total_points})
     
     @app.route('/users/stats', methods=['GET'])
     @jwt_required()
@@ -270,7 +270,7 @@ def create_routes(app):
         user = get_user(db.session, user_id)
         if not user:
             return jsonify({"error": "User not found"}), 404
-        return jsonify({"id": user.id, "username": user.username, "email": user.email, "created_at": user.created_at, "points": user.points})
+        return jsonify({"id": user.id, "username": user.username, "email": user.email, "created_at": user.created_at, "points": user.total_points})
 
 # Upload photo
     @app.route('/photos/', methods=['POST'])
@@ -656,44 +656,34 @@ def create_routes(app):
         participant = add_participant(db.session, game.id, uid, is_creator)
         return jsonify(game_id=game.id, code=game.code), 201
 
-    @app.route('/games/<int:game_id>', methods=['PUT'])
+    @app.route('/games/id/<int:game_id>', methods=['GET'])
     @jwt_required()
-    def modify_game(game_id):
-        uid = int(get_jwt_identity())
-        data = request.get_json() or {}
+    def get_game_by_id_route(game_id):
         game = get_game(db.session, game_id)
         if not game:
-            return jsonify(error='Game not found'), 404
-        # Seul le créateur peut modifier
-        if game.creator_id != uid:
-            return jsonify(error='Unauthorized'), 403
-        # Mise à jour
-        updated = update_game(
-            db.session,
-            game_id=game_id,
-            max_players=data.get('max_players'),
-            max_objects=data.get('max_objects'),
-            mode=data.get('mode'),
-            filters=data.get('filters'),
-            is_public=data.get('is_public'),
-            password=data.get('password')
-        )
-        if not updated:
-            return jsonify(error='Update failed'), 400
+            return jsonify({"error": "Game not found"}), 404
+
         return jsonify({
-            'game_id': updated.id,
-            'max_players': updated.max_players,
-            'max_objects': updated.max_objects,
-            'mode': updated.mode,
-            'filters': updated.filters,
-            'is_public': updated.is_public,
-            'password': updated.password
+            "id": game.id,
+            "code": game.code,
+            "creator_id": game.creator_id,
+            "is_public": game.is_public,
+            "max_players": game.max_players,
+            "max_objects": game.max_objects,
+            "mode": game.mode,
+            "filters": game.filters,
+            "status": game.status,
+            "start_timestamp": game.start_timestamp.isoformat() if game.start_timestamp else None,  # NOUVEAU
+            "created_at": game.created_at.isoformat() if game.created_at else None,
         }), 200
 
     @app.route('/games/<int:game_id>/start', methods=['PUT'])
     @jwt_required()
     def start_game(game_id):
         uid = int(get_jwt_identity())
+        data = request.get_json() or {}
+        countdown_seconds = data.get('countdown_seconds', 5)  # Par défaut 5 secondes
+        
         game = get_game(db.session, game_id)
 
         if not game:
@@ -706,15 +696,19 @@ def create_routes(app):
         if game.status == "in_progress":
             return jsonify(error='The game has already started'), 400
 
-        # Initialise start_time de tous les participants
-        participants = list_participants(db.session, game_id)
-        now = datetime.utcnow()
-        for p in participants:
-            p.start_time = now
-            p.status = 'in_progress'
-        db.session.commit()
+        # Calculer le timestamp de démarrage (maintenant + countdown)
+        from datetime import datetime, timedelta
+        start_timestamp = datetime.utcnow() + timedelta(seconds=countdown_seconds)
+        
+        # Mettre à jour le statut de la partie à "starting" avec le timestamp
+        updated = update_game(
+            db.session,
+            game_id=game_id,
+            status='starting',
+            start_timestamp=start_timestamp
+        )
 
-        # Génère la liste d'objets à trouver
+        # Générer la liste d'objets à trouver
         OBJECT_POOL = [
             "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
             "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
@@ -733,26 +727,70 @@ def create_routes(app):
         for idx, name in enumerate(selection, start=1):
             add_game_object(db.session, game_id, name, order_index=idx)
 
-        # 4) Prépare le JSON structuré pour les participants
+        # Préparer le JSON structuré pour les participants
         objects_payload = [
             { "order_index": idx+1, "objectname": name, "found": False, "skipped": False }
             for idx, name in enumerate(selection)
         ]
-        # Initialise start_time et objets pour chaque participant
+        
+        # Initialiser les objets pour chaque participant (sans start_time encore)
         participants = list_participants(db.session, game_id)
-        now = datetime.utcnow()
         for p in participants:
-            update_participant_status_and_start(
-                db.session, p.id, now, status='in_progress')
+            p.status = 'ready'  # Statut intermédiaire
             update_participant_objects(db.session, p.id, objects_payload)
 
-        updated = update_game(
-            db.session,
+        return jsonify(
+            message='Game starting countdown initiated', 
             game_id=game_id,
-            status='in_progress'
-        )
+            start_timestamp=start_timestamp.isoformat(),
+            countdown_seconds=countdown_seconds
+        ), 200
 
-        return jsonify(message='Game started', game_id=game_id), 200
+
+    # Nouvelle route pour vérifier et finaliser le démarrage
+    @app.route('/games/<int:game_id>/check-start', methods=['GET'])
+    @jwt_required()
+    def check_game_start(game_id):
+        game = get_game(db.session, game_id)
+        if not game:
+            return jsonify(error='Game not found'), 404
+        
+        now = datetime.utcnow()
+        
+        # Si le jeu est en "starting" et que le timestamp est dépassé
+        if game.status == "starting" and game.start_timestamp and now >= game.start_timestamp:
+            # Démarrer réellement la partie
+            participants = list_participants(db.session, game_id)
+            actual_start_time = game.start_timestamp  # Utiliser le timestamp prévu
+            
+            for p in participants:
+                update_participant_status_and_start(
+                    db.session, p.id, actual_start_time, status='in_progress'
+                )
+            
+            # Mettre à jour le statut du jeu
+            update_game(db.session, game_id=game_id, status='in_progress')
+            
+            return jsonify(
+                status='in_progress',
+                started=True,
+                actual_start_time=actual_start_time.isoformat()
+            ), 200
+        
+        elif game.status == "starting":
+            # Encore en attente
+            return jsonify(
+                status='starting',
+                started=False,
+                start_timestamp=game.start_timestamp.isoformat() if game.start_timestamp else None,
+                seconds_remaining=max(0, int((game.start_timestamp - now).total_seconds())) if game.start_timestamp else 0
+            ), 200
+        
+        elif game.status == "in_progress":
+            return jsonify(status='in_progress', started=True), 200
+        
+        else:
+            return jsonify(status=game.status, started=False), 200
 
     @app.route('/games/join', methods=['POST'])
     @jwt_required()
@@ -781,25 +819,25 @@ def create_routes(app):
         return jsonify(game_id=game.id, participant_id=part.id), 200
 
     # Récupérer par game_id
-    @app.route('/games/id/<int:game_id>', methods=['GET'])
-    @jwt_required()
-    def get_game_by_id_route(game_id):
-        game = get_game(db.session, game_id)
-        if not game:
-            return jsonify({"error": "Game not found"}), 404
+    # @app.route('/games/id/<int:game_id>', methods=['GET'])
+    # @jwt_required()
+    # def get_game_by_id_route(game_id):
+    #     game = get_game(db.session, game_id)
+    #     if not game:
+    #         return jsonify({"error": "Game not found"}), 404
 
-        return jsonify({
-            "id": game.id,
-            "code": game.code,
-            "creator_id": game.creator_id,
-            "is_public": game.is_public,
-            "max_players": game.max_players,
-            "max_objects": game.max_objects,
-            "mode": game.mode,
-            "filters": game.filters,
-            "status": game.status,
-            "created_at": game.created_at.isoformat() if game.created_at else None,
-        }), 200
+    #     return jsonify({
+    #         "id": game.id,
+    #         "code": game.code,
+    #         "creator_id": game.creator_id,
+    #         "is_public": game.is_public,
+    #         "max_players": game.max_players,
+    #         "max_objects": game.max_objects,
+    #         "mode": game.mode,
+    #         "filters": game.filters,
+    #         "status": game.status,
+    #         "created_at": game.created_at.isoformat() if game.created_at else None,
+    #     }), 200
 
     # Récupérer par code
     @app.route('/games/code/<string:code>', methods=['GET'])

@@ -2,15 +2,6 @@ from .database import db
 from datetime import datetime
 
 
-# class User(db.Model):
-#     __tablename__ = "users"
-#     id = db.Column(db.Integer, primary_key=True, index=True)
-#     username = db.Column(db.String, unique=True, index=True)
-#     email = db.Column(db.String, unique=True, index=True)
-#     password_hash = db.Column(db.String)
-#     points = db.Column(db.Integer, default=0)
-#     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
 class User(db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
@@ -90,6 +81,7 @@ class Game(db.Model):
     mode = db.Column(db.String(50), default="classique", nullable=False)
     filters = db.Column(db.JSON)
     status = db.Column(db.String(50), default="en cours", nullable=False)
+    start_timestamp = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     password = db.Column(db.String(50))
 

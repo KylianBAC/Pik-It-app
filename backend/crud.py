@@ -197,7 +197,8 @@ def update_game(
     mode: str = None,
     filters: dict = None,
     is_public: bool = None,
-    password: str = None
+    password: str = None,
+    start_timestamp: datetime = None  # NOUVEAU paramètre
 ):
     game = db.query(Game).filter(Game.id == game_id).first()
     if not game:
@@ -216,6 +217,8 @@ def update_game(
         game.is_public = is_public
     if password is not None:
         game.password = password
+    if start_timestamp is not None:  # NOUVEAU
+        game.start_timestamp = start_timestamp
     db.commit()
     db.refresh(game)
     return game
