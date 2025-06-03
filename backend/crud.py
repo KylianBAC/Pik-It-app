@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from sqlalchemy.orm.attributes import flag_modified
 from .models import User, Quest, Photo, Game, GameObject, GameParticipant, Friend, Reward, Detection, TrainingAnnotation
-from datetime import date
+from datetime import date, datetime
 import uuid
 
 # Utilisateurs
@@ -36,6 +36,91 @@ def get_quest_by_date(target_date: date):
 
 def get_quest_by_id(target_id: int):
     return Quest.query.filter_by(id=target_id).first()
+
+
+def get_today_rewards(db: Session, user_id: int):
+    """Récupérer les récompenses du jour pour un utilisateur"""
+    return db.query(Reward).filter_by(user_id=user_id).filter(
+        func.date(Reward.created_at) == func.date(datetime.now())
+    ).all()
+
+def check_challenge_completed_today(db: Session, user_id: int, challenge_id: int):
+    """Vérifier si un défi a déjà été complété aujourd'hui"""
+    return db.query(Reward).filter_by(
+        user_id=user_id,
+        challenge_id=challenge_id
+    ).filter(
+        func.date(Reward.created_at) == func.date(datetime.now())
+    ).first() is not None
+
+def update_user_stats(db: Session, user_id: int, points: int = 0, coins: int = 0):
+    """Met à jour les statistiques d'un utilisateur"""
+    user = get_user(db, user_id)
+    if not user:
+        return None
+    
+    user.total_points += points
+    user.total_coins += coins
+    user.challenges_completed += 1
+    
+    # Calculer et mettre à jour le streak
+    current_streak = calculate_user_streak(db, user_id)
+    user.current_streak = current_streak
+    
+    # Mettre à jour le meilleur streak si nécessaire
+    if current_streak > user.longest_streak:
+        user.longest_streak = current_streak
+    
+    user.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(user)
+    return user
+
+def calculate_user_streak(db: Session, user_id: int):
+    """Calcule le streak actuel d'un utilisateur"""
+    # Récupérer les récompenses des 30 derniers jours, groupées par date
+    from sqlalchemy import distinct, func
+    
+    reward_dates = db.query(
+        func.date(Reward.created_at).label('reward_date')
+    ).filter_by(user_id=user_id).distinct().order_by(
+        func.date(Reward.created_at).desc()
+    ).limit(30).all()
+    
+    if not reward_dates:
+        return 0
+    
+    streak = 1
+    current_date = reward_dates[0].reward_date
+    
+    for i in range(1, len(reward_dates)):
+        prev_date = reward_dates[i].reward_date
+        if (current_date - prev_date).days == 1:
+            streak += 1
+            current_date = prev_date
+        else:
+            break
+    
+    return streak
+
+def get_user_statistics(db: Session, user_id: int):
+    """Récupère les statistiques complètes d'un utilisateur"""
+    user = get_user(db, user_id)
+    if not user:
+        return None
+    
+    return {
+        "user_id": user.id,
+        "username": user.username,
+        "total_points": user.total_points,
+        "total_coins": user.total_coins,
+        "current_streak": user.current_streak,
+        "longest_streak": user.longest_streak,
+        "challenges_completed": user.challenges_completed,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at
+    }
 
 # Photos
 

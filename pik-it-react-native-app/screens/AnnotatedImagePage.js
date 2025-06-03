@@ -13,13 +13,13 @@ import {
   StatusBar,
 } from "react-native";
 import Svg, { Rect, Text as SvgText } from "react-native-svg";
-import { XCircle, CheckCircle } from "lucide-react-native";
+import { XCircle, CheckCircle, Gift } from "lucide-react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const TOP_PADDING = Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
 
 export default function AnnotatedImagePage({ route, navigation }) {
-  const { imageUri, detections, objectToPhotograph } = route.params;
+  const { imageUri, detections, objectToPhotograph, challengeId } = route.params;
   const [detected, setDetected] = useState(false);
   const [dims, setDims] = useState({ w: 0, h: 0, dw: 0, dh: 0 });
   const imageSizeRatio = 0.8;
@@ -48,6 +48,20 @@ export default function AnnotatedImagePage({ route, navigation }) {
     const sx = dims.dw / dims.w;
     const sy = dims.dh / dims.h;
     return [x1 * sx * imageSizeRatio, y1 * sy * imageSizeRatio, x2 * sx * imageSizeRatio, y2 * sy * imageSizeRatio];
+  };
+
+  const handleMainButtonPress = () => {
+    if (detected) {
+      // Naviguer vers la page de récompense
+      navigation.navigate('RewardScreen', {
+        objectToPhotograph,
+        challengeId,
+        imageUri
+      });
+    } else {
+      // Retourner à la caméra pour réessayer
+      navigation.goBack();
+    }
   };
 
   // Wait until dimensions are calculated
@@ -119,10 +133,15 @@ export default function AnnotatedImagePage({ route, navigation }) {
       </View>
 
       <TouchableOpacity
-        style={[styles.button, styles.retryButton]}
-        onPress={() => navigation.goBack()}
+        style={[styles.button, detected ? styles.successButton : styles.retryButton]}
+        onPress={handleMainButtonPress}
       >
-        <Text style={styles.buttonText}>Réessayer</Text>
+        <View style={styles.buttonContent}>
+          {detected && <Gift size={20} color="#FFF" style={styles.buttonIcon} />}
+          <Text style={styles.buttonText}>
+            {detected ? "Obtenir la récompense" : "Réessayer"}
+          </Text>
+        </View>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -214,8 +233,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonIcon: {
+    marginRight: 8,
+  },
   retryButton: {
     backgroundColor: '#EF4444',
+  },
+  successButton: {
+    backgroundColor: '#10B981',
   },
   toggleButton: {
     backgroundColor: '#374151',

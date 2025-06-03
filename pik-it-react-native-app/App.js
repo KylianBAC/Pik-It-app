@@ -7,6 +7,7 @@ import RegisterScreen from './screens/RegisterScreen';
 import HomeScreen from './screens/HomeScreen';
 import CameraScreen from './screens/CameraScreen';
 import AnnotatedImagePage from './screens/AnnotatedImagePage';
+import RewardScreen from './screens/RewardScreen';
 import DefisScreen from './screens/DefisScreen';
 import BattleScreen from './screens/BattleScreen';
 import BattleLobbyScreen from './screens/BattleLobbyScreen';
@@ -43,6 +44,7 @@ export default function App() {
                     <Stack.Screen name="HomeScreen" component={HomeScreen} />
                     <Stack.Screen name="Camera" component={CameraScreen} />
                     <Stack.Screen name="AnnotatedImage" component={AnnotatedImagePage} />
+                    <Stack.Screen name="RewardScreen" component={RewardScreen} />
                     <Stack.Screen name="DefisScreen" component={DefisScreen} />
                     <Stack.Screen name="BattleScreen" component={BattleScreen} />
                     <Stack.Screen name="BattleLobbyScreen" component={BattleLobbyScreen} />

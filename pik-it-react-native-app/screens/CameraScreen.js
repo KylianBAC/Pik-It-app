@@ -70,7 +70,7 @@ export default function CameraScreen({ route, navigation }) {
       formData.append("file", { uri: photo.uri, name: "photo.jpg", type: "image/jpeg" });
       if (challengeId) formData.append("challenge_id", String(challengeId));
       const response = await client.post("/photos/detect", formData, { headers: { "Content-Type": "multipart/form-data" } });
-      navigation.navigate("AnnotatedImage", { imageUri: photo.uri, detections: response.data.detections, objectToPhotograph });
+      navigation.navigate("AnnotatedImage", { imageUri: photo.uri, detections: response.data.detections, objectToPhotograph, challengeId });
     } catch {
       Alert.alert("Erreur", "Erreur lors de l'envoi de la photo.");
     } finally {

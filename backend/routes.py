@@ -21,12 +21,17 @@ from .crud import (
     add_participant, get_participant, list_participants, update_participant_status_and_start, update_participant_objects,
     add_friend, get_friends,
     add_reward, get_rewards, create_detection,
-    create_annotation, get_annotations_by_user, get_annotations_by_photo
+    create_annotation, get_annotations_by_user, get_annotations_by_photo,
+    update_user_stats, calculate_user_streak, get_user_statistics
 )
 from .daily_quest_creation import create_daily_quest
 from .utils import detect_objects
 from PIL import Image
 from .database import db
+from .models import Reward
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+from datetime import timedelta
 import os
 
 
@@ -61,6 +66,52 @@ def create_routes(app):
         if not user:
             return jsonify({"error": "User not found"}), 404
         return jsonify({"id": user.id, "username": user.username, "points": user.points})
+    
+    @app.route('/users/stats', methods=['GET'])
+    @jwt_required()
+    def get_user_stats():
+        """Récupère les statistiques de l'utilisateur connecté"""
+        user_id = get_jwt_identity()
+        stats = get_user_statistics(db.session, user_id)
+        
+        if not stats:
+            return jsonify({"error": "Utilisateur introuvable"}), 404
+        
+        return jsonify(stats), 200
+
+    @app.route('/users/profile', methods=['GET'])
+    @jwt_required()
+    def get_user_profile():
+        """Récupère le profil complet de l'utilisateur avec stats récentes"""
+        user_id = get_jwt_identity()
+        user = get_user(db.session, user_id)
+        
+        if not user:
+            return jsonify({"error": "Utilisateur introuvable"}), 404
+        
+        # Récupérer les récompenses récentes
+        recent_rewards = get_rewards(db.session, user_id)[-10:]  # 10 dernières
+        
+        return jsonify({
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "total_points": user.total_points,
+                "total_coins": user.total_coins,
+                "current_streak": user.current_streak,
+                "longest_streak": user.longest_streak,
+                "challenges_completed": user.challenges_completed,
+                "created_at": user.created_at,
+                "updated_at": user.updated_at
+            },
+            "recent_rewards": [{
+                "id": r.id,
+                "reward_type": r.reward_type,
+                "reward_value": r.reward_value,
+                "created_at": r.created_at
+            } for r in recent_rewards]
+        }), 200
 
     @app.route('/admin/create_daily_quest', methods=['POST'])
     def create_daily_quest_endpoint():
@@ -127,6 +178,36 @@ def create_routes(app):
             "quest_date": quest.quest_date.isoformat()
         }
         return jsonify(quest_data), 200
+    
+    @app.route('/rewards/claim', methods=['POST'])
+    @jwt_required()
+    def claim_reward():
+        data = request.get_json()
+        user_id = get_jwt_identity()
+        challenge_id = data.get("challenge_id")
+        
+        if not challenge_id:
+            return jsonify({"error": "challenge_id requis"}), 400
+        
+        # Trouver la récompense du jour pour ce défi
+        reward = db.session.query(Reward).filter_by(
+            user_id=user_id,
+            challenge_id=challenge_id
+        ).filter(
+            func.date(Reward.created_at) == func.date(datetime.now())
+        ).first()
+        
+        if not reward:
+            return jsonify({"error": "Aucune récompense à réclamer"}), 404
+        
+        # Marquer comme réclamée (si vous ajoutez un champ 'claimed' à votre modèle)
+        # reward.claimed = True
+        # db.session.commit()
+        
+        return jsonify({
+            "message": "Récompense réclamée avec succès !",
+            "reward_id": reward.id
+        }), 200
 
     @app.route('/friends/', methods=['POST'])
     def add_friend_route():
@@ -298,7 +379,8 @@ def create_routes(app):
             })
         return jsonify({
             "photo": {"id": photo.id, "file_path": photo.file_path},
-            "detections": detection_entries
+            "detections": detection_entries,
+            "challenge_completed": any(det["is_challenge_object"] for det in detection_entries)
         }), 201
 
     @app.route('/annotations/submit', methods=['POST'])
@@ -394,56 +476,122 @@ def create_routes(app):
         return jsonify(result), 200
 
 # Complete a quest
-    @app.route('/quests/complete', methods=['POST'])
+    @app.route('/challenges/complete', methods=['POST'])
     @jwt_required()
-    def complete_challenge():
+    def complete_challenge_mobile():
+        """
+        Route simplifiée pour compléter un défi depuis l'app mobile
+        """
         data = request.get_json()
-        # On attend par exemple un payload JSON contenant :
-        # - "photo_id" : l'identifiant de la photo du challenge
-        # - "challenge_id": l'id de la quête à compléter
-        # - éventuellement d'autres éléments de vérification
-        photo_id = data.get("photo_id")
-        challenge_id = data.get("challenge_id")
         user_id = get_jwt_identity()
-
-        if not photo_id or not challenge_id:
-            return jsonify({"error": "photo_id et challenge_id sont requis"}), 400
-        else:
-            # Requête interne pour récupérer le challenge via son ID
-            with current_app.test_client() as client:
-                response = client.get(f"/quests/id/{challenge_id}")
-                if response.status_code != 200:
-                    return jsonify({"error": "Challenge introuvable"}), 404
-                challenge_data = response.get_json()
-                challenge_name = challenge_data.get("name")
-                reward_points = challenge_data.get("reward_points")
-        # Ici, vous devez ajouter la logique pour vérifier que la photo contient bien
-        # la détection attendue par la quête (par exemple, en consultant les détections)
-        detections = get_detections_by_photo_id(photo_id)
-        # Vous pouvez ajouter la logique de validation, par exemple :
-        valid = False
-        for d in detections:
-            if d.challenge_id == challenge_id and d.is_challenge_object:
-                valid = True
-                break
-
-        if not valid:
-            return jsonify({"error": "Challenge non complété ou détection non valide"}), 400
-
-        # Si le challenge est complété, vous attribuez la récompense
-        reward = add_reward(db.session, user_id, reward_type=challenge_name,
-                            reward_value=reward_points, challenge_id=challenge_id)
-
-        # Vous pouvez aussi mettre à jour le statut de la photo ou de la quête si besoin
+        
+        challenge_id = data.get("challenge_id")
+        photo_id = data.get("photo_id")  # Optionnel, pour vérification
+        
+        if not challenge_id:
+            return jsonify({"error": "challenge_id requis"}), 400
+        
+        # Récupérer les informations du challenge
+        quest = get_quest_by_id(challenge_id)
+        if not quest:
+            return jsonify({"error": "Challenge introuvable"}), 404
+        
+        # Vérifier si l'utilisateur a déjà complété ce défi aujourd'hui
+        existing_reward = db.session.query(Reward).filter_by(
+            user_id=user_id,
+            challenge_id=challenge_id,
+            created_at=func.date(datetime.now())  # Même jour
+        ).first()
+        
+        if existing_reward:
+            return jsonify({"error": "Défi déjà complété aujourd'hui"}), 400
+        
+        # Si photo_id fourni, vérifier la détection
+        if photo_id:
+            detections = get_detections_by_photo_id(photo_id)
+            valid_detection = any(
+                d.challenge_id == challenge_id and d.is_challenge_object 
+                for d in detections
+            )
+            if not valid_detection:
+                return jsonify({"error": "Objet requis non détecté dans la photo"}), 400
+        
+        # Calculer les récompenses
+        base_points = quest.reward_points
+        base_coins = quest.reward_points // 2  # Exemple : moitié en pièces
+        
+        # Bonus de streak (optionnel)
+        current_streak = calculate_user_streak(db.session, user_id) + 1  # +1 car ce défi va incrémenter
+        streak_bonus = min(current_streak * 5, 50)  # Max 50 points de bonus
+        
+        total_points = base_points + streak_bonus
+        total_coins = base_coins
+        
+        # Créer la récompense
+        reward = add_reward(
+            db.session, 
+            user_id, 
+            reward_type=quest.name,
+            reward_value=str(total_points),
+            challenge_id=challenge_id
+        )
+        
+        # IMPORTANT : Mettre à jour les stats de l'utilisateur
+        updated_user = update_user_stats(
+            db.session, 
+            user_id, 
+            points=total_points, 
+            coins=total_coins
+        )
+        
+        if not updated_user:
+            return jsonify({"error": "Erreur lors de la mise à jour du profil"}), 500
+        
         return jsonify({
-            "message": "Challenge complété avec succès",
+            "message": "Défi complété avec succès !",
             "reward": {
                 "id": reward.id,
-                "reward_type": reward.reward_type,
-                "reward_value": reward.reward_value,
-                "challenge_id": reward.challenge_id
+                "points": total_points,
+                "base_points": base_points,
+                "streak_bonus": streak_bonus,
+                "coins": total_coins,
+                "bonus": f"Défi '{quest.name}' complété !",
+                "streak": updated_user.current_streak
+            },
+            "user_stats": {
+                "total_points": updated_user.total_points,
+                "total_coins": updated_user.total_coins,
+                "current_streak": updated_user.current_streak,
+                "challenges_completed": updated_user.challenges_completed
             }
         }), 200
+
+
+    def calculate_user_rewards(db: Session, user_id: int, quest):
+        """
+        Fonction helper pour calculer les récompenses et streaks
+        """
+        # Compter les récompenses consécutives des derniers jours
+        recent_rewards = db.query(Reward).filter_by(
+            user_id=user_id
+        ).filter(
+            Reward.created_at >= datetime.now() - timedelta(days=7)
+        ).order_by(Reward.created_at.desc()).all()
+        
+        # Calculer le streak
+        streak = 1
+        for i, reward in enumerate(recent_rewards[1:], 1):
+            reward_date = reward.created_at.date()
+            prev_date = recent_rewards[i-1].created_at.date()
+            if (prev_date - reward_date).days == 1:
+                streak += 1
+            else:
+                break
+        
+        return {
+            "streak": streak,
+            "total_points": sum(int(r.reward_value) for r in recent_rewards if r.reward_value.isdigit())
+        }
 
 
 # Get user photos
