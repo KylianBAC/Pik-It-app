@@ -11,6 +11,7 @@ import RewardScreen from './screens/RewardScreen';
 import DefisScreen from './screens/DefisScreen';
 import BattleScreen from './screens/BattleScreen';
 import BattleLobbyScreen from './screens/BattleLobbyScreen';
+import BattleSettingsScreen from './screens/BattleSettingsScreen';
 import BattleGameScreen from './screens/BattleGameScreen';
 import BattleCameraScreen from './screens/BattleCameraScreen';
 import BattleResultScreen from './screens/BattleResultScreen';
@@ -49,6 +50,7 @@ export default function App() {
                     <Stack.Screen name="DefisScreen" component={DefisScreen} />
                     <Stack.Screen name="BattleScreen" component={BattleScreen} />
                     <Stack.Screen name="BattleLobbyScreen" component={BattleLobbyScreen} />
+                    <Stack.Screen name="BattleSettingsScreen" component={BattleSettingsScreen} />
                     <Stack.Screen name="BattleGameScreen" component={BattleGameScreen} />
                     <Stack.Screen name="BattleCameraScreen" component={BattleCameraScreen} />
                     <Stack.Screen name="BattleResultScreen" component={BattleResultScreen} />

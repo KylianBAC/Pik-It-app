@@ -80,7 +80,7 @@ class Game(db.Model):
     max_objects = db.Column(db.Integer, default=5, nullable=False)
     mode = db.Column(db.String(50), default="classique", nullable=False)
     filters = db.Column(db.JSON)
-    status = db.Column(db.String(50), default="en cours", nullable=False)
+    status = db.Column(db.String(50), default="waiting", nullable=False)
     start_timestamp = db.Column(db.DateTime)
     end_timestamp = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

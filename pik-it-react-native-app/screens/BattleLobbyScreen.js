@@ -10,7 +10,7 @@ import {
   Modal,
 } from "react-native";
 import { apiClient } from "../api/auth";
-import { XCircle, Users, Lock, Clock } from "lucide-react-native";
+import { XCircle, Users, Lock, Clock, Settings } from "lucide-react-native"; // Add Settings here
 
 export default function BattleLobbyScreen({ route, navigation }) {
   const { gameId, code, isCreator } = route.params;
@@ -22,7 +22,8 @@ export default function BattleLobbyScreen({ route, navigation }) {
   const [gameStarting, setGameStarting] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [showCountdownChoiceModal, setShowCountdownChoiceModal] = useState(false);
+  const [showCountdownChoiceModal, setShowCountdownChoiceModal] =
+    useState(false);
   const gameStatusIntervalRef = useRef(null);
 
   // Fonction pour afficher une modal d'erreur personnalisée
@@ -77,7 +78,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
     try {
       const client = await apiClient();
       const res = await client.get(`/games/${gameId}/participants`);
-      
+
       // Récupérer les informations utilisateur pour chaque participant
       const participantsWithUserInfo = await Promise.all(
         res.data.map(async (participant) => {
@@ -85,18 +86,21 @@ export default function BattleLobbyScreen({ route, navigation }) {
             const userRes = await client.get(`/users/${participant.user_id}`);
             return {
               ...participant,
-              user: userRes.data
+              user: userRes.data,
             };
           } catch (e) {
-            console.error(`Erreur lors de la récupération de l'utilisateur ${participant.user_id}:`, e);
+            console.error(
+              `Erreur lors de la récupération de l'utilisateur ${participant.user_id}:`,
+              e
+            );
             return {
               ...participant,
-              user: { username: `User ${participant.user_id}` } // Fallback
+              user: { username: `User ${participant.user_id}` }, // Fallback
             };
           }
         })
       );
-      
+
       setParticipants(participantsWithUserInfo);
     } catch (e) {
       console.error("Erreur lors de la récupération des participants:", e);
@@ -124,7 +128,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
 
     if (gameStarting && countdown > 0) {
       countdownInterval = setInterval(() => {
-        setCountdown(prev => {
+        setCountdown((prev) => {
           if (prev <= 1) {
             setGameStarting(false);
             return 0;
@@ -149,7 +153,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
     try {
       const client = await apiClient();
       const res = await client.put(`/games/${gameId}/start`, {
-        countdown_seconds: seconds
+        countdown_seconds: seconds,
       });
 
       if (res.data.start_timestamp) {
@@ -178,11 +182,30 @@ export default function BattleLobbyScreen({ route, navigation }) {
     );
   };
 
+  // Add this function for navigating to settings
+  const navigateToSettings = () => {
+    navigation.navigate("BattleSettingsScreen", {
+      gameId,
+      isCreator,
+    });
+  };
+
   return (
     <View style={styles.container}>
+      {/* Modified header section */}
       <View style={styles.header}>
-        <Text style={styles.title}>Lobby</Text>
-        <Text style={styles.code}>Code: {code}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Lobby</Text>
+          <Text style={styles.code}>Code: {code}</Text>
+        </View>
+        {isCreator && (
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={navigateToSettings}
+          >
+            <Settings size={24} color="#6B7280" />
+          </TouchableOpacity>
+        )}
         {gameStarting && (
           <View style={styles.startingIndicator}>
             <Clock size={16} color="#FF6B35" />
@@ -244,22 +267,33 @@ export default function BattleLobbyScreen({ route, navigation }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Démarrer la partie</Text>
-            <Text style={styles.modalMessage}>Choisissez le délai avant le début de la partie :</Text>
+            <Text style={styles.modalMessage}>
+              Choisissez le délai avant le début de la partie :
+            </Text>
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => { initiateGameStart(3); setShowCountdownChoiceModal(false); }}
+              onPress={() => {
+                initiateGameStart(3);
+                setShowCountdownChoiceModal(false);
+              }}
             >
               <Text style={styles.modalButtonText}>3 secondes</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => { initiateGameStart(5); setShowCountdownChoiceModal(false); }}
+              onPress={() => {
+                initiateGameStart(5);
+                setShowCountdownChoiceModal(false);
+              }}
             >
               <Text style={styles.modalButtonText}>5 secondes</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => { initiateGameStart(10); setShowCountdownChoiceModal(false); }}
+              onPress={() => {
+                initiateGameStart(10);
+                setShowCountdownChoiceModal(false);
+              }}
             >
               <Text style={styles.modalButtonText}>10 secondes</Text>
             </TouchableOpacity>
@@ -299,13 +333,38 @@ export default function BattleLobbyScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#F3F4F6" },
-  header: { alignItems: "center", marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: "700" },
-  code: { fontSize: 18, marginTop: 4 },
+  // Updated header styles
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  settingsButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+  },
+  code: {
+    fontSize: 18,
+    marginTop: 4,
+  },
   startingIndicator: {
+    position: "absolute", // Adjusted for absolute positioning
+    top: 60, // Adjusted top position
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
+    justifyContent: "center", // Centered content
     paddingHorizontal: 12,
     paddingVertical: 4,
     backgroundColor: "#FEF3C7",
@@ -401,51 +460,51 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 20,
     padding: 30,
-    alignItems: 'center',
+    alignItems: "center",
     maxWidth: 300,
-    width: '100%',
+    width: "100%",
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalMessage: {
     fontSize: 16,
-    textAlign: 'center',
-    color: '#6B7280',
+    textAlign: "center",
+    color: "#6B7280",
     marginBottom: 20,
   },
   modalButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: "#3B82F6",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 25,
     marginTop: 10,
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
   },
   modalButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   cancelButton: {
-    backgroundColor: '#EF4444',
+    backgroundColor: "#EF4444",
   },
   cancelButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
