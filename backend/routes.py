@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import uuid
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import random
 from .crud import (
@@ -194,7 +194,7 @@ def create_routes(app):
             user_id=user_id,
             challenge_id=challenge_id
         ).filter(
-            func.date(Reward.created_at) == func.date(datetime.now())
+            func.date(Reward.created_at) == func.date(datetime.now(timezone.utc))
         ).first()
         
         if not reward:
@@ -287,7 +287,7 @@ def create_routes(app):
             return jsonify({"error": "Empty filename"}), 400
 
         ext = os.path.splitext(secure_filename(file.filename))[1]
-        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+        unique_name = f"{current_user_id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
 
         uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
         os.makedirs(uploads_dir, exist_ok=True)
@@ -317,10 +317,10 @@ def create_routes(app):
             return jsonify({"error": "Nom de fichier vide"}), 400
 
         ext = os.path.splitext(secure_filename(file.filename))[1]
-        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+        unique_name = f"{current_user_id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
 
         ext = os.path.splitext(secure_filename(file.filename))[1]
-        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+        unique_name = f"{current_user_id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
 
         uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
         os.makedirs(uploads_dir, exist_ok=True)
@@ -500,7 +500,7 @@ def create_routes(app):
         existing_reward = db.session.query(Reward).filter_by(
             user_id=user_id,
             challenge_id=challenge_id,
-            created_at=func.date(datetime.now())  # Même jour
+            created_at=func.date(datetime.now(timezone.utc))  # Même jour
         ).first()
         
         if existing_reward:
@@ -575,7 +575,7 @@ def create_routes(app):
         recent_rewards = db.query(Reward).filter_by(
             user_id=user_id
         ).filter(
-            Reward.created_at >= datetime.now() - timedelta(days=7)
+            Reward.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
         ).order_by(Reward.created_at.desc()).all()
         
         # Calculer le streak
@@ -673,7 +673,8 @@ def create_routes(app):
             "mode": game.mode,
             "filters": game.filters,
             "status": game.status,
-            "start_timestamp": game.start_timestamp.isoformat() if game.start_timestamp else None,  # NOUVEAU
+            "start_timestamp": game.start_timestamp.isoformat() if game.start_timestamp else None,
+            "end_timestamp": game.end_timestamp.isoformat() if game.end_timestamp else None,
             "created_at": game.created_at.isoformat() if game.created_at else None,
         }), 200
 
@@ -789,6 +790,18 @@ def create_routes(app):
         elif game.status == "in_progress":
             return jsonify(status='in_progress', started=True), 200
         
+        elif game.status == "finished": # Ajouté pour la fin de partie
+            # Si le jeu est terminé, calculer le temps restant pour le décompte de 30 secondes
+            time_since_finish = (now - game.end_timestamp).total_seconds() if game.end_timestamp else 0
+            remaining_countdown = max(0, 30 - int(time_since_finish)) # 30 secondes en dur
+            
+            return jsonify(
+                status='finished',
+                started=False, # Le jeu est terminé, pas "en cours de démarrage"
+                end_timestamp=game.end_timestamp.isoformat() if game.end_timestamp else None,
+                seconds_remaining=remaining_countdown
+            ), 200
+        
         else:
             return jsonify(status=game.status, started=False), 200
 
@@ -818,26 +831,64 @@ def create_routes(app):
         print(f"User {uid} joined game {game.id} as participant {part.id}")
         return jsonify(game_id=game.id, participant_id=part.id), 200
 
-    # Récupérer par game_id
-    # @app.route('/games/id/<int:game_id>', methods=['GET'])
-    # @jwt_required()
-    # def get_game_by_id_route(game_id):
-    #     game = get_game(db.session, game_id)
-    #     if not game:
-    #         return jsonify({"error": "Game not found"}), 404
 
-    #     return jsonify({
-    #         "id": game.id,
-    #         "code": game.code,
-    #         "creator_id": game.creator_id,
-    #         "is_public": game.is_public,
-    #         "max_players": game.max_players,
-    #         "max_objects": game.max_objects,
-    #         "mode": game.mode,
-    #         "filters": game.filters,
-    #         "status": game.status,
-    #         "created_at": game.created_at.isoformat() if game.created_at else None,
-    #     }), 200
+    @app.route('/games/<int:game_id>/update', methods=['PUT'])
+    @jwt_required()
+    def update_game_route(game_id):
+        uid = int(get_jwt_identity())
+        data = request.get_json() or {}
+        
+        game = get_game(db.session, game_id)
+        if not game:
+            return jsonify(error='Game not found'), 404
+        
+        # Vérifier que l'utilisateur est participant à la partie
+        participants = list_participants(db.session, game_id)
+        user_participant = next((p for p in participants if p.user_id == uid), None)
+        if not user_participant:
+            return jsonify(error='You are not a participant in this game'), 403
+        
+        # Paramètres autorisés à modifier
+        allowed_params = {
+            'status': data.get('status'),
+            'max_players': data.get('max_players'),
+            'max_objects': data.get('max_objects'),
+            'mode': data.get('mode'),
+            'filters': data.get('filters'),
+            'is_public': data.get('is_public'),
+            'password': data.get('password'),
+            'start_timestamp': data.get('start_timestamp')
+        }
+        
+        # Filtrer seulement les paramètres fournis
+        update_params = {k: v for k, v in allowed_params.items() if v is not None}
+        
+        # Traitement spécial pour start_timestamp si fourni
+        if 'start_timestamp' in update_params:
+            try:
+                update_params['start_timestamp'] = datetime.fromisoformat(update_params['start_timestamp'].replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify(error='Invalid start_timestamp format'), 400
+        
+        updated_game = update_game(db.session, game_id=game_id, **update_params)
+        
+        if not updated_game:
+            return jsonify(error='Failed to update game'), 500
+        
+        return jsonify({
+            "id": updated_game.id,
+            "code": updated_game.code,
+            "creator_id": updated_game.creator_id,
+            "is_public": updated_game.is_public,
+            "max_players": updated_game.max_players,
+            "max_objects": updated_game.max_objects,
+            "mode": updated_game.mode,
+            "filters": updated_game.filters,
+            "status": updated_game.status,
+            "start_timestamp": updated_game.start_timestamp.isoformat() if updated_game.start_timestamp else None,
+            "created_at": updated_game.created_at.isoformat() if updated_game.created_at else None,
+            "message": "Game updated successfully"
+        }), 200
 
     # Récupérer par code
     @app.route('/games/code/<string:code>', methods=['GET'])
@@ -895,6 +946,37 @@ def create_routes(app):
                               data['object'], data['order_index'])
         return jsonify(id=obj.id, object=obj.object_to_find), 201
 
+
+    @app.route('/games/<int:game_id>/update_status', methods=['PUT'])
+    @jwt_required()
+    def update_game_status(game_id):
+        uid = int(get_jwt_identity())
+        data = request.get_json() or {}
+        status = data.get('status')
+        end_timestamp = data.get('end_timestamp')
+
+        game = get_game(db.session, game_id)
+        if not game:
+            return jsonify(error='Game not found'), 404
+        
+        # Optionnel: vérifier si l'utilisateur a le droit de modifier le statut
+        # Par exemple, seul le créateur ou un participant peut déclencher la fin
+        # Pour l'instant, on permet à tout utilisateur authentifié
+        
+        if status:
+            if status == "finished" and not game.end_timestamp: # S'assurer que end_timestamp n'est défini qu'une seule fois
+                # Si le statut passe à "finished" et qu'il n'y a pas encore de end_timestamp, le définir
+                # Utiliser le end_timestamp fourni par le client s'il y en a un, sinon datetime.utcnow()
+                game_end_timestamp = datetime.fromisoformat(end_timestamp) if end_timestamp else datetime.utcnow()
+                update_game(db.session, game_id=game_id, status=status, end_timestamp=game_end_timestamp)
+            else:
+                update_game(db.session, game_id=game_id, status=status)
+            
+            return jsonify(message=f"Game {game_id} status updated to {status}"), 200
+        
+        return jsonify(error="No status provided"), 400
+    
+
     @app.route('/games/detect', methods=['POST'])
     @jwt_required()
     def game_detect():
@@ -929,7 +1011,7 @@ def create_routes(app):
         if not next_object:
             return jsonify({
                 "message": "Tous les objets ont déjà été trouvés.",
-                "detections": detection_entries
+                "detections": [] # Retourne une liste vide si tous les objets sont trouvés
             }), 200
 
         # Vérification de fichier
@@ -945,7 +1027,7 @@ def create_routes(app):
         # Enregistrement de la photo
 
         ext = os.path.splitext(secure_filename(file.filename))[1]
-        unique_name = f"{current_user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+        unique_name = f"{current_user_id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
 
         uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
         os.makedirs(uploads_dir, exist_ok=True)
@@ -1010,6 +1092,11 @@ def create_routes(app):
             if all_found:
                 participant.status = "finished"
                 participant.end_time = end_time  # On prend le end_time transmis par l'utilisateur
+                
+                # Mettre à jour le statut du jeu à "finished"
+                game = get_game(db.session, participant.game_id)
+                if game and game.status != "finished": # Ne le met à jour que si ce n'est pas déjà fait
+                    update_game(db.session, game_id=game.id, status="finished", end_timestamp=datetime.utcnow())
 
             db.session.commit()
 

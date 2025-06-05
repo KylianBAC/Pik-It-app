@@ -101,8 +101,12 @@ export default function BattleCameraScreen({ route, navigation }) {
 
   const handleResultClose = () => {
     setShowResult(false);
-    // Retourne à l'écran de jeu après avoir fermé la modal
-    navigation.navigate("BattleGameScreen", { gameId });
+    // Redirige en fonction du statut de la partie
+    if (detectionResult?.gameFinished) {
+      navigation.replace("BattleResultScreen", { gameId }); // Redirige vers l'écran des résultats
+    } else {
+      navigation.navigate("BattleGameScreen", { gameId }); // Retourne à l'écran de jeu
+    }
   };
 
   const topPadding = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;

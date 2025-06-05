@@ -82,6 +82,7 @@ class Game(db.Model):
     filters = db.Column(db.JSON)
     status = db.Column(db.String(50), default="en cours", nullable=False)
     start_timestamp = db.Column(db.DateTime)
+    end_timestamp = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     password = db.Column(db.String(50))
 

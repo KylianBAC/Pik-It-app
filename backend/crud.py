@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from sqlalchemy.orm.attributes import flag_modified
 from .models import User, Quest, Photo, Game, GameObject, GameParticipant, Friend, Reward, Detection, TrainingAnnotation
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 import uuid
 
 # Utilisateurs
@@ -41,7 +41,7 @@ def get_quest_by_id(target_id: int):
 def get_today_rewards(db: Session, user_id: int):
     """Récupérer les récompenses du jour pour un utilisateur"""
     return db.query(Reward).filter_by(user_id=user_id).filter(
-        func.date(Reward.created_at) == func.date(datetime.now())
+        func.date(Reward.created_at) == func.date(datetime.now(timezone.utc))
     ).all()
 
 def check_challenge_completed_today(db: Session, user_id: int, challenge_id: int):
@@ -50,7 +50,7 @@ def check_challenge_completed_today(db: Session, user_id: int, challenge_id: int
         user_id=user_id,
         challenge_id=challenge_id
     ).filter(
-        func.date(Reward.created_at) == func.date(datetime.now())
+        func.date(Reward.created_at) == func.date(datetime.now(timezone.utc))
     ).first() is not None
 
 def update_user_stats(db: Session, user_id: int, points: int = 0, coins: int = 0):
@@ -198,7 +198,8 @@ def update_game(
     filters: dict = None,
     is_public: bool = None,
     password: str = None,
-    start_timestamp: datetime = None  # NOUVEAU paramètre
+    start_timestamp: datetime = None,
+    end_timestamp: datetime = None
 ):
     game = db.query(Game).filter(Game.id == game_id).first()
     if not game:
@@ -217,8 +218,10 @@ def update_game(
         game.is_public = is_public
     if password is not None:
         game.password = password
-    if start_timestamp is not None:  # NOUVEAU
+    if start_timestamp is not None:
         game.start_timestamp = start_timestamp
+    if end_timestamp is not None:
+        game.end_timestamp = end_timestamp
     db.commit()
     db.refresh(game)
     return game

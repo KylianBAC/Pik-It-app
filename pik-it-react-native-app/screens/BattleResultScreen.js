@@ -1,134 +1,258 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   FlatList,
-  Image,
-  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CheckCircle, XCircle, Camera, ArrowLeft } from "lucide-react-native";
+import { apiClient } from "../api/auth";
+import { Award, Trophy, Users, Clock } from "lucide-react-native";
 
 export default function BattleResultScreen({ route, navigation }) {
-  const { 
-    gameId, 
-    detections = [], 
-    updatedObject = null, 
-    gameFinished = false,
-    photoUri = null,
-    targetObject = ""
-  } = route.params;
+  const { gameId } = route.params;
+  const [gameInfo, setGameInfo] = useState(null);
+  const [participants, setParticipants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [me, setMe] = useState(null);
 
-  const [showDetections, setShowDetections] = useState(false);
-  const isSuccess = updatedObject && updatedObject.found;
-
-  const renderDetection = ({ item }) => (
-    <View style={styles.detectionItem}>
-      <Text style={styles.detectionName}>{item.object_name}</Text>
-      <Text style={styles.detectionConfidence}>
-        {Math.round(item.confidence * 100)}% de confiance
-      </Text>
-      {item.object_name.toLowerCase() === targetObject.toLowerCase() && (
-        <CheckCircle size={16} color="#10B981" style={styles.matchIcon} />
-      )}
-    </View>
-  );
-
-  const continueGame = () => {
-    if (gameFinished) {
-      navigation.navigate("BattleLobbyScreen", { gameId });
-    } else {
-      navigation.navigate("BattleGameScreen", { gameId });
+  // Fonction pour récupérer les informations de l'utilisateur actuel
+  const fetchMe = async () => {
+    try {
+      const client = await apiClient();
+      const res = await client.get("/users/me");
+      setMe(res.data);
+    } catch (e) {
+      console.error("Erreur lors de la récupération du profil utilisateur:", e);
     }
   };
 
-  const retryPhoto = () => {
-    navigation.goBack(); // Retour à l'écran caméra
+  // Fonction pour récupérer les détails de la partie et les participants
+  const fetchGameResults = async () => {
+    try {
+      const client = await apiClient();
+      const gameRes = await client.get(`/games/id/${gameId}`);
+      setGameInfo(gameRes.data);
+
+      const participantsRes = await client.get(`/games/${gameId}/participants`);
+
+      // Récupérer les informations utilisateur pour chaque participant
+      const participantsWithUserInfo = await Promise.all(
+        participantsRes.data.map(async (participant) => {
+          try {
+            const userRes = await client.get(`/users/${participant.user_id}`);
+            return {
+              ...participant,
+              user: userRes.data,
+            };
+          } catch (e) {
+            console.error(
+              `Erreur lors de la récupération de l'utilisateur ${participant.user_id}:`,
+              e
+            );
+            return {
+              ...participant,
+              user: { username: `User ${participant.user_id}` }, // Fallback
+            };
+          }
+        })
+      );
+
+      setParticipants(participantsWithUserInfo);
+    } catch (e) {
+      console.error("Erreur lors de la récupération des résultats du jeu:", e);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    const initializeData = async () => {
+      await fetchMe();
+      await fetchGameResults();
+    };
+
+    initializeData();
+  }, [gameId]);
+
+  // Utilisation de useMemo pour éviter les recalculs inutiles
+  const winner = useMemo(() => {
+    if (!participants.length) return null;
+
+    const sortedParticipants = [...participants].sort((a, b) => {
+      const aFinished = a.objects_to_find?.every((obj) => obj.found);
+      const bFinished = b.objects_to_find?.every((obj) => obj.found);
+
+      if (aFinished && !bFinished) return -1;
+      if (!aFinished && bFinished) return 1;
+
+      if (aFinished && bFinished) {
+        const aEndTime = a.end_time ? new Date(a.end_time).getTime() : Infinity;
+        const bEndTime = b.end_time ? new Date(b.end_time).getTime() : Infinity;
+        return aEndTime - bEndTime;
+      }
+
+      const aFoundCount =
+        a.objects_to_find?.filter((obj) => obj.found).length || 0;
+      const bFoundCount =
+        b.objects_to_find?.filter((obj) => obj.found).length || 0;
+      return bFoundCount - aFoundCount;
+    });
+
+    return sortedParticipants[0];
+  }, [participants]);
+
+  // Mémorisation des participants triés pour éviter les recalculs
+  const sortedParticipants = useMemo(() => {
+    return [...participants].sort((a, b) => {
+      const aFinished = a.objects_to_find?.every((obj) => obj.found);
+      const bFinished = b.objects_to_find?.every((obj) => obj.found);
+
+      if (aFinished && !bFinished) return -1;
+      if (!aFinished && bFinished) return 1;
+
+      if (aFinished && bFinished) {
+        const aEndTime = a.end_time ? new Date(a.end_time).getTime() : Infinity;
+        const bEndTime = b.end_time ? new Date(b.end_time).getTime() : Infinity;
+        return aEndTime - bEndTime;
+      }
+
+      const aFoundCount =
+        a.objects_to_find?.filter((obj) => obj.found).length || 0;
+      const bFoundCount =
+        b.objects_to_find?.filter((obj) => obj.found).length || 0;
+      return bFoundCount - aFoundCount;
+    });
+  }, [participants]);
+
+  const calculateDuration = (startTime, endTime) => {
+    if (!startTime || !endTime) {
+      return "N/A";
+    }
+
+    try {
+      // Créer les objets Date
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+
+      // Vérifier que les dates sont valides
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        console.warn("Dates invalides:", { startTime, endTime });
+        return "N/A";
+      }
+
+      // Vérifier que end_time est postérieur à start_time
+      if (end.getTime() <= start.getTime()) {
+        console.warn("end_time antérieur ou égal à start_time:", {
+          startTime,
+          endTime,
+        });
+        return "N/A";
+      }
+
+      // Calculer la différence en millisecondes puis en secondes
+      const diffMs = end.getTime() - start.getTime();
+      const diffSeconds = Math.floor(diffMs / 1000);
+
+      // Calculer minutes et secondes
+      const minutes = Math.floor(diffSeconds / 60);
+      const seconds = diffSeconds % 60;
+
+      return `${minutes}m ${seconds}s`;
+    } catch (error) {
+      console.error("Erreur lors du calcul de la durée:", error);
+      return "N/A";
+    }
+  };
+
+  // Dans votre renderParticipantResult, remplacez le calcul actuel par :
+  const renderParticipantResult = React.useCallback(
+    ({ item }) => {
+      const foundCount =
+        item.objects_to_find?.filter((obj) => obj.found).length || 0;
+      const totalObjects = item.objects_to_find?.length || 0;
+      const isWinner = winner && winner.id === item.id;
+      const isMe = me && me.id === item.user_id;
+
+      // Utiliser la nouvelle fonction de calcul
+      const duration = calculateDuration(item.start_time, item.end_time);
+
+      return (
+        <View
+          style={[
+            styles.participantCard,
+            isWinner && styles.winnerCard,
+            isMe && styles.myCard,
+          ]}
+        >
+          <View style={styles.participantHeader}>
+            <Users size={24} color={isWinner ? "#FFD700" : "#374151"} />
+            <Text style={styles.participantName}>
+              {item.user?.username || `User ${item.user_id}`}{" "}
+              {isMe ? "(Moi)" : ""}
+            </Text>
+            {isWinner && (
+              <Trophy size={24} color="#FFD700" style={styles.trophyIcon} />
+            )}
+          </View>
+          <Text style={styles.participantStats}>
+            Objets trouvés : {foundCount} / {totalObjects}
+          </Text>
+          <Text style={styles.participantStats}>Temps : {duration}</Text>
+          {item.status === "finished" && (
+            <Text style={styles.participantStatus}>✅ Terminé !</Text>
+          )}
+        </View>
+      );
+    },
+    [winner, me]
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header avec résultat */}
-      <View style={[styles.resultHeader, isSuccess ? styles.successHeader : styles.failureHeader]}>
-        {isSuccess ? (
-          <>
-            <CheckCircle size={48} color="#10B981" />
-            <Text style={styles.resultTitle}>Bravo ! 🎉</Text>
-            <Text style={styles.resultSubtitle}>
-              Vous avez trouvé : {targetObject}
-            </Text>
-          </>
-        ) : (
-          <>
-            <XCircle size={48} color="#EF4444" />
-            <Text style={styles.resultTitle}>Pas encore ! 😅</Text>
-            <Text style={styles.resultSubtitle}>
-              Objet recherché : {targetObject}
-            </Text>
-          </>
-        )}
-      </View>
-
-      {/* Photo prise (si disponible) */}
-      {photoUri && (
-        <View style={styles.photoContainer}>
-          <Image source={{ uri: photoUri }} style={styles.photo} />
-        </View>
+      <Text style={styles.headerTitle}>Résultats de la partie</Text>
+      {gameInfo && (
+        <Text style={styles.gameCode}>Code de la partie : {gameInfo.code}</Text>
       )}
 
-      {/* Résumé des détections */}
-      <View style={styles.detectionSummary}>
-        <Text style={styles.detectionTitle}>
-          {detections.length} objet{detections.length > 1 ? 's' : ''} détecté{detections.length > 1 ? 's' : ''}
-        </Text>
-        
-        {detections.length > 0 && (
-          <TouchableOpacity 
-            style={styles.toggleButton}
-            onPress={() => setShowDetections(!showDetections)}
-          >
-            <Text style={styles.toggleButtonText}>
-              {showDetections ? 'Masquer les détections' : 'Voir les détections'}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Liste des détections */}
-      {showDetections && detections.length > 0 && (
-        <FlatList
-          data={detections}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderDetection}
-          style={styles.detectionList}
-        />
-      )}
-
-      {/* Message de fin de partie */}
-      {gameFinished && (
-        <View style={styles.gameFinishedBanner}>
-          <Text style={styles.gameFinishedText}>🏆 Partie terminée !</Text>
-        </View>
-      )}
-
-      {/* Actions */}
-      <View style={styles.actions}>
-        {!isSuccess && !gameFinished && (
-          <TouchableOpacity style={styles.retryButton} onPress={retryPhoto}>
-            <Camera size={20} color="#FFF" />
-            <Text style={styles.retryButtonText}>Reprendre une photo</Text>
-          </TouchableOpacity>
-        )}
-        
-        <TouchableOpacity style={styles.continueButton} onPress={continueGame}>
-          <ArrowLeft size={20} color="#FFF" />
-          <Text style={styles.continueButtonText}>
-            {gameFinished ? 'Retour au lobby' : 'Continuer'}
+      {winner && (
+        <View style={styles.winnerSection}>
+          <Award size={40} color="#FFD700" />
+          <Text style={styles.winnerText}>
+            Gagnant : {winner.user?.username || `User ${winner.user_id}`}
           </Text>
-        </TouchableOpacity>
-      </View>
+          <Text style={styles.winnerMessage}>
+            Félicitations pour la victoire !
+          </Text>
+        </View>
+      )}
+
+      <Text style={styles.participantsListTitle}>
+        Classement des participants :
+      </Text>
+      <FlatList
+        data={sortedParticipants}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={renderParticipantResult}
+        contentContainerStyle={styles.participantsList}
+      />
+
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.popToTop()}
+      >
+        <Text style={styles.backButtonText}>Retour à l'accueil</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -137,135 +261,117 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F3F4F6",
+    padding: 16,
   },
-  resultHeader: {
+  center: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    padding: 24,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 16,
   },
-  successHeader: {
-    backgroundColor: "#D1FAE5",
-  },
-  failureHeader: {
-    backgroundColor: "#FEE2E2",
-  },
-  resultTitle: {
-    fontSize: 24,
+  headerTitle: {
+    fontSize: 28,
     fontWeight: "bold",
-    marginTop: 12,
     color: "#1F2937",
+    textAlign: "center",
+    marginBottom: 8,
   },
-  resultSubtitle: {
-    fontSize: 16,
-    marginTop: 4,
+  gameCode: {
+    fontSize: 18,
     color: "#6B7280",
     textAlign: "center",
+    marginBottom: 24,
   },
-  photoContainer: {
-    alignItems: "center",
-    marginVertical: 16,
-  },
-  photo: {
-    width: 200,
-    height: 150,
-    borderRadius: 12,
-    backgroundColor: "#E5E7EB",
-  },
-  detectionSummary: {
+  winnerSection: {
     backgroundColor: "#FFF",
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
+    padding: 20,
     alignItems: "center",
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: "#FFD700",
   },
-  detectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  toggleButton: {
-    marginTop: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 8,
-  },
-  toggleButtonText: {
-    color: "#3B82F6",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  detectionList: {
-    marginHorizontal: 16,
-    maxHeight: 200,
-  },
-  detectionItem: {
-    backgroundColor: "#FFF",
-    padding: 12,
-    marginVertical: 2,
-    borderRadius: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  detectionName: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#1F2937",
-    flex: 1,
-  },
-  detectionConfidence: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginRight: 8,
-  },
-  matchIcon: {
-    marginLeft: 8,
-  },
-  gameFinishedBanner: {
-    backgroundColor: "#FCD34D",
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  gameFinishedText: {
-    fontSize: 18,
+  winnerText: {
+    fontSize: 24,
     fontWeight: "bold",
-    color: "#92400E",
+    color: "#1F2937",
+    marginTop: 10,
   },
-  actions: {
+  winnerMessage: {
+    fontSize: 16,
+    color: "#6B7280",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  participantsListTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginBottom: 16,
+  },
+  participantsList: {
+    paddingBottom: 20,
+  },
+  participantCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 12,
     padding: 16,
-    gap: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 5,
+    borderLeftWidth: 5,
+    borderLeftColor: "#D1D5DB",
   },
-  retryButton: {
-    backgroundColor: "#F59E0B",
+  winnerCard: {
+    borderLeftColor: "#FFD700",
+    backgroundColor: "#FFFBEB",
+  },
+  myCard: {
+    borderLeftColor: "#3B82F6",
+    backgroundColor: "#EFF6FF",
+  },
+  participantHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
+    marginBottom: 8,
   },
-  retryButtonText: {
-    color: "#FFF",
-    fontSize: 16,
+  participantName: {
+    fontSize: 18,
     fontWeight: "600",
+    marginLeft: 8,
+    color: "#374151",
   },
-  continueButton: {
-    backgroundColor: "#3B82F6",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
+  trophyIcon: {
+    marginLeft: "auto",
   },
-  continueButtonText: {
-    color: "#FFF",
+  participantStats: {
     fontSize: 16,
+    color: "#4B5563",
+    marginBottom: 4,
+  },
+  participantStatus: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#10B981",
+    marginTop: 8,
+  },
+  backButton: {
+    backgroundColor: "#3B82F6",
+    paddingVertical: 14,
+    borderRadius: 25,
+    alignItems: "center",
+    marginTop: 20,
+  },
+  backButtonText: {
+    color: "#FFF",
+    fontSize: 18,
     fontWeight: "600",
   },
 });

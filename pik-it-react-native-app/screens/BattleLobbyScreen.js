@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   TextInput,
-  Alert,
+  Modal,
 } from "react-native";
 import { apiClient } from "../api/auth";
 import { XCircle, Users, Lock, Clock } from "lucide-react-native";
@@ -15,11 +15,21 @@ import { XCircle, Users, Lock, Clock } from "lucide-react-native";
 export default function BattleLobbyScreen({ route, navigation }) {
   const { gameId, code, isCreator } = route.params;
   const [participants, setParticipants] = useState([]);
-  const [gameInfo, setGameInfo] = useState([]);
+  const [gameInfo, setGameInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [passwordInput, setPasswordInput] = useState("");
   const [countdown, setCountdown] = useState(null);
   const [gameStarting, setGameStarting] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showCountdownChoiceModal, setShowCountdownChoiceModal] = useState(false);
+  const gameStatusIntervalRef = useRef(null);
+
+  // Fonction pour afficher une modal d'erreur personnalisée
+  const showAlert = (message) => {
+    setErrorMessage(message);
+    setShowErrorModal(true);
+  };
 
   // Fetch game info and check for start status
   const fetchGame = async () => {
@@ -27,8 +37,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
       const client = await apiClient();
       const res = await client.get(`/games/id/${gameId}`);
       setGameInfo(res.data);
-      
-      // Si le jeu est en cours de démarrage, vérifier le statut
+
       if (res.data.status === "starting") {
         checkGameStart();
       } else if (res.data.status === "in_progress") {
@@ -37,72 +46,94 @@ export default function BattleLobbyScreen({ route, navigation }) {
         navigation.replace("BattleResultScreen", { gameId });
       }
     } catch (e) {
-      console.error(e);
+      console.error("Erreur lors de la récupération des infos du jeu:", e);
+      showAlert("Impossible de récupérer les informations de la partie.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Vérifier le statut de démarrage et gérer le countdown
   const checkGameStart = async () => {
     try {
       const client = await apiClient();
       const res = await client.get(`/games/${gameId}/check-start`);
-      
+
       if (res.data.started) {
-        // Le jeu a commencé
         navigation.replace("BattleGameScreen", { gameId });
       } else if (res.data.status === "starting") {
-        // Jeu en cours de démarrage, mettre à jour le countdown
         setGameStarting(true);
         setCountdown(res.data.seconds_remaining);
+      } else if (res.data.status === "finished") {
+        navigation.replace("BattleResultScreen", { gameId });
       }
     } catch (e) {
-      console.error(e);
+      console.error("Erreur lors de la vérification du démarrage du jeu:", e);
+      showAlert("Impossible de vérifier le statut de démarrage de la partie.");
     }
   };
 
-  // Fetch participants
+  // Fetch participants avec les informations utilisateur complètes
   const fetchParticipants = async () => {
     try {
       const client = await apiClient();
       const res = await client.get(`/games/${gameId}/participants`);
-      setParticipants(res.data);
+      
+      // Récupérer les informations utilisateur pour chaque participant
+      const participantsWithUserInfo = await Promise.all(
+        res.data.map(async (participant) => {
+          try {
+            const userRes = await client.get(`/users/${participant.user_id}`);
+            return {
+              ...participant,
+              user: userRes.data
+            };
+          } catch (e) {
+            console.error(`Erreur lors de la récupération de l'utilisateur ${participant.user_id}:`, e);
+            return {
+              ...participant,
+              user: { username: `User ${participant.user_id}` } // Fallback
+            };
+          }
+        })
+      );
+      
+      setParticipants(participantsWithUserInfo);
     } catch (e) {
-      console.error(e);
+      console.error("Erreur lors de la récupération des participants:", e);
+      showAlert("Impossible de récupérer la liste des participants.");
     }
   };
 
   useEffect(() => {
     fetchParticipants();
     fetchGame();
-    
+
     const participantsInterval = setInterval(fetchParticipants, 3000);
-    const gameInterval = setInterval(fetchGame, 2000);
-    
+    gameStatusIntervalRef.current = setInterval(checkGameStart, 2000);
+
     return () => {
       clearInterval(participantsInterval);
-      clearInterval(gameInterval);
+      if (gameStatusIntervalRef.current) {
+        clearInterval(gameStatusIntervalRef.current);
+      }
     };
   }, []);
 
-  // Timer de countdown local
   useEffect(() => {
     let countdownInterval;
-    
+
     if (gameStarting && countdown > 0) {
       countdownInterval = setInterval(() => {
         setCountdown(prev => {
           if (prev <= 1) {
             setGameStarting(false);
-            checkGameStart(); // Vérifier si le jeu a commencé
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
     }
-    
+
     return () => {
       if (countdownInterval) {
         clearInterval(countdownInterval);
@@ -111,35 +142,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
   }, [gameStarting, countdown]);
 
   const startGame = async () => {
-    try {
-      const client = await apiClient();
-      
-      // Demander confirmation avec choix du délai
-      Alert.alert(
-        "Démarrer la partie",
-        "Choisissez le délai avant le début de la partie :",
-        [
-          {
-            text: "3 secondes",
-            onPress: () => initiateGameStart(3)
-          },
-          {
-            text: "5 secondes", 
-            onPress: () => initiateGameStart(5)
-          },
-          {
-            text: "10 secondes",
-            onPress: () => initiateGameStart(10)
-          },
-          {
-            text: "Annuler",
-            style: "cancel"
-          }
-        ]
-      );
-    } catch (e) {
-      console.error(e);
-    }
+    setShowCountdownChoiceModal(true);
   };
 
   const initiateGameStart = async (seconds) => {
@@ -148,14 +151,15 @@ export default function BattleLobbyScreen({ route, navigation }) {
       const res = await client.put(`/games/${gameId}/start`, {
         countdown_seconds: seconds
       });
-      
+
       if (res.data.start_timestamp) {
         setGameStarting(true);
         setCountdown(seconds);
+        setShowCountdownChoiceModal(false);
       }
     } catch (e) {
       console.error(e);
-      Alert.alert("Erreur", "Impossible de démarrer la partie");
+      showAlert("Impossible de démarrer la partie");
     }
   };
 
@@ -186,7 +190,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
           </View>
         )}
       </View>
-      
+
       {loading ? (
         <ActivityIndicator size="large" />
       ) : (
@@ -196,32 +200,13 @@ export default function BattleLobbyScreen({ route, navigation }) {
           renderItem={({ item }) => (
             <View style={styles.participantRow}>
               <Users size={20} />
-              <Text style={styles.participantName}>User {item.user_id}</Text>
+              <Text style={styles.participantName}>
+                {item.user?.username || `User ${item.user_id}`}
+              </Text>
               {item.is_creator && <XCircle size={16} color="green" />}
             </View>
           )}
         />
-      )}
-
-      {!isCreator && (
-        <View style={styles.passwordSection}>
-          <Lock size={16} />
-          <TextInput
-            style={styles.passwordInput}
-            secureTextEntry
-            placeholder="Mot de passe"
-            value={passwordInput}
-            onChangeText={setPasswordInput}
-          />
-          <TouchableOpacity
-            style={styles.joinBtn}
-            onPress={() => {
-              /* join logic */
-            }}
-          >
-            <Text style={styles.buttonText}>Rejoindre</Text>
-          </TouchableOpacity>
-        </View>
       )}
 
       {isCreator && !gameStarting && (
@@ -248,6 +233,66 @@ export default function BattleLobbyScreen({ route, navigation }) {
       </TouchableOpacity>
 
       {renderCountdownOverlay()}
+
+      {/* Modal de choix du délai de démarrage */}
+      <Modal
+        visible={showCountdownChoiceModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowCountdownChoiceModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Démarrer la partie</Text>
+            <Text style={styles.modalMessage}>Choisissez le délai avant le début de la partie :</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => { initiateGameStart(3); setShowCountdownChoiceModal(false); }}
+            >
+              <Text style={styles.modalButtonText}>3 secondes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => { initiateGameStart(5); setShowCountdownChoiceModal(false); }}
+            >
+              <Text style={styles.modalButtonText}>5 secondes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => { initiateGameStart(10); setShowCountdownChoiceModal(false); }}
+            >
+              <Text style={styles.modalButtonText}>10 secondes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.cancelButton]}
+              onPress={() => setShowCountdownChoiceModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal d'erreur personnalisée */}
+      <Modal
+        visible={showErrorModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowErrorModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Erreur</Text>
+            <Text style={styles.modalMessage}>{errorMessage}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowErrorModal(false)}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -353,5 +398,54 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontSize: 14,
     textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    maxWidth: 300,
+    width: '100%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  modalButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    marginTop: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    backgroundColor: '#EF4444',
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
