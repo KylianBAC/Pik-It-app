@@ -30,6 +30,16 @@ class Quest(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class ObjectList(db.Model):
+    __tablename__ = "object_lists"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    list = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Photo(db.Model):
     __tablename__ = "photos"
     id = db.Column(db.Integer, primary_key=True, index=True)

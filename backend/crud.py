@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from sqlalchemy.orm.attributes import flag_modified
-from .models import User, Quest, Photo, Game, GameObject, GameParticipant, Friend, Reward, Detection, TrainingAnnotation
+from .models import User, Quest, Photo, Game, GameObject, GameParticipant, Friend, Reward, Detection, TrainingAnnotation, ObjectList
 from datetime import date, datetime, timezone
 import uuid
 
@@ -354,3 +354,62 @@ def get_annotations_by_user(db: Session, user_id: int):
 
 def get_annotations_by_photo(db: Session, user_id: int, photo_id: int):
     return db.query(TrainingAnnotation).filter_by(user_id=user_id, photo_id=photo_id).all()
+
+
+# Fonctions pour ObjectList à ajouter à crud.py
+
+def get_object_list_by_name(db: Session, list_name: str):
+    """Récupère une liste d'objets par son nom"""
+    return db.query(ObjectList).filter(ObjectList.name == list_name).first()
+
+def get_objects_from_list(db: Session, list_name: str):
+    """Récupère et parse la liste d'objets depuis la base de données"""
+    object_list = get_object_list_by_name(db, list_name)
+    if not object_list:
+        return None
+    
+    # Supposons que la liste est stockée sous forme de chaîne séparée par des virgules
+    # Vous pouvez adapter selon le format de stockage choisi
+    try:
+        import json
+        # Si c'est du JSON
+        objects = json.loads(object_list.list)
+    except json.JSONDecodeError:
+        # Si c'est une chaîne séparée par des virgules
+        objects = [obj.strip() for obj in object_list.list.split(',')]
+    
+    return objects
+
+def create_object_list(db: Session, name: str, objects_list: list, description: str = None):
+    """Crée une nouvelle liste d'objets"""
+    import json
+    
+    # Convertir la liste en JSON pour le stockage
+    list_json = json.dumps(objects_list)
+    
+    object_list = ObjectList(
+        name=name,
+        list=list_json,
+        description=description
+    )
+    db.add(object_list)
+    db.commit()
+    db.refresh(object_list)
+    return object_list
+
+def update_object_list(db: Session, list_name: str, objects_list: list, description: str = None):
+    """Met à jour une liste d'objets existante"""
+    import json
+    
+    object_list = get_object_list_by_name(db, list_name)
+    if not object_list:
+        return None
+    
+    object_list.list = json.dumps(objects_list)
+    if description is not None:
+        object_list.description = description
+    object_list.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(object_list)
+    return object_list

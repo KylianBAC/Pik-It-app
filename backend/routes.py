@@ -17,7 +17,7 @@ from .crud import (
     create_photo, get_photos_by_user, get_photo_by_id,
     get_detections_by_photo_id,
     create_game, update_game, get_game, get_game_by_code,
-    add_game_object, list_game_objects,
+    add_game_object, get_object_list_by_name, get_objects_from_list, create_object_list, update_object_list,
     add_participant, get_participant, list_participants, update_participant_status_and_start, update_participant_objects,
     add_friend, get_friends,
     add_reward, get_rewards, create_detection,
@@ -684,6 +684,7 @@ def create_routes(app):
         uid = int(get_jwt_identity())
         data = request.get_json() or {}
         countdown_seconds = data.get('countdown_seconds', 5)  # Par défaut 5 secondes
+        list_name = data.get('object_list_name', 'default')  # Nom de la liste à utiliser
         
         game = get_game(db.session, game_id)
 
@@ -709,22 +710,32 @@ def create_routes(app):
             start_timestamp=start_timestamp
         )
 
-        # Générer la liste d'objets à trouver
-        OBJECT_POOL = [
-            "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
-            "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
-            "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
-            "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
-            "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-            "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
-            "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza",
-            "donut", "cake", "chair", "couch", "potted plant", "bed", "dining table", "toilet",
-            "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
-            "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-            "hair drier", "toothbrush"
-        ]
+        # Récupérer la liste d'objets depuis la base de données
+        objects_pool = get_objects_from_list(db.session, list_name)
+        
+        if not objects_pool:
+            # Fallback vers la liste par défaut si la liste demandée n'existe pas
+            OBJECT_POOL_FALLBACK = [
+                "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
+                "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
+                "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+                "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+                "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+                "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
+                "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza",
+                "donut", "cake", "chair", "couch", "potted plant", "bed", "dining table", "toilet",
+                "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
+                "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
+                "hair drier", "toothbrush"
+            ]
+            objects_pool = OBJECT_POOL_FALLBACK
+            return jsonify(error=f'Object list "{list_name}" not found'), 404
 
-        selection = random.sample(OBJECT_POOL, k=game.max_objects)
+        # Vérifier qu'il y a assez d'objets dans la liste
+        if len(objects_pool) < game.max_objects:
+            return jsonify(error=f'Not enough objects in list "{list_name}". Required: {game.max_objects}, Available: {len(objects_pool)}'), 400
+
+        selection = random.sample(objects_pool, k=game.max_objects)
         for idx, name in enumerate(selection, start=1):
             add_game_object(db.session, game_id, name, order_index=idx)
 
@@ -744,7 +755,9 @@ def create_routes(app):
             message='Game starting countdown initiated', 
             game_id=game_id,
             start_timestamp=start_timestamp.isoformat(),
-            countdown_seconds=countdown_seconds
+            countdown_seconds=countdown_seconds,
+            object_list_used=list_name,
+            selected_objects=selection
         ), 200
 
 
