@@ -14,7 +14,7 @@ import { apiClient } from "../api/auth";
 import { XCircle, Users, Lock, Clock, Settings } from "lucide-react-native"; // Add Settings here
 
 export default function BattleLobbyScreen({ route, navigation }) {
-  const { gameId, code, isCreator } = route.params;
+  const { gameId, code, isCreator, objectList } = route.params;
   const [participants, setParticipants] = useState([]);
   const [gameInfo, setGameInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -155,6 +155,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
       const client = await apiClient();
       const res = await client.put(`/games/${gameId}/start`, {
         countdown_seconds: seconds,
+        object_list_name: objectList ?? "default"
       });
 
       if (res.data.start_timestamp) {
@@ -187,6 +188,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
   const navigateToSettings = () => {
     navigation.navigate("BattleSettingsScreen", {
       gameId,
+      code,
       isCreator,
     });
   };

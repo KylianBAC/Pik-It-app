@@ -9,11 +9,10 @@ from werkzeug.utils import secure_filename
 model = YOLO("yolo11x.pt")  # Modèle pré-entraîné
 
 def detect_objects(image):
-    """
-    Analyse une image avec YOLOv11 et retourne les détections.
-    :param image: Image PIL
-    :return: Liste des détections
-    """
+    # Analyse une image avec YOLOv11 et retourne les détections.
+    # :param image: Image PIL
+    # :return: Liste des détections
+
     # Convertir l'image en numpy array
     img_array = np.array(image)
 

@@ -12,10 +12,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from "../api/auth";
-import { Settings, Users, Target, Clock, Lock, Globe, Save, X } from "lucide-react-native";
+import { Settings, Users, Target, Clock, Lock, Globe, Save, X, List } from "lucide-react-native";
 
 export default function BattleSettingsScreen({ route, navigation }) {
-  const { gameId, isCreator } = route.params;
+  const { gameId, code, isCreator } = route.params;
   const [gameInfo, setGameInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,12 +28,20 @@ export default function BattleSettingsScreen({ route, navigation }) {
   const [mode, setMode] = useState("classique");
   const [isPublic, setIsPublic] = useState(true);
   const [password, setPassword] = useState("");
+  const [objectList, setObjectList] = useState("default");
   const [showModeModal, setShowModeModal] = useState(false);
+  const [showObjectListModal, setShowObjectListModal] = useState(false);
 
   const modes = [
-    { value: "classique", label: "Classique", description: "Mode de jeu standard" },
-    { value: "rapide", label: "Rapide", description: "Partie plus courte" },
-    { value: "défi", label: "Défi", description: "Mode difficile avec contraintes" },
+    { value: "classique", label: "Classique", description: "Mode de jeu standard", available: true },
+    { value: "rapide", label: "Rapide", description: "Partie plus courte", available: false },
+    { value: "défi", label: "Défi", description: "Mode difficile avec contraintes", available: false },
+  ];
+
+  const objectLists = [
+    { value: "default", label: "Par défaut", description: "Liste d'objets standard" },
+    { value: "epitech", label: "Epitech", description: "Objets spécifiques au campus Epitech" },
+    { value: "epitech_indoor", label: "Epitech Intérieur", description: "Objets d'intérieur du campus Epitech" },
   ];
 
   const showAlert = (message) => {
@@ -53,6 +61,7 @@ export default function BattleSettingsScreen({ route, navigation }) {
       setMode(game.mode);
       setIsPublic(game.is_public);
       setPassword(game.password || "");
+      setObjectList(game.object_list || "default");
     } catch (e) {
       console.error("Erreur lors de la récupération des infos du jeu:", e);
       showAlert("Impossible de récupérer les paramètres de la partie.");
@@ -80,6 +89,7 @@ export default function BattleSettingsScreen({ route, navigation }) {
         max_objects: maxObjects,
         mode: mode,
         is_public: isPublic,
+        object_list: objectList,
       };
 
       // Ajouter le mot de passe seulement si la partie est privée
@@ -92,7 +102,15 @@ export default function BattleSettingsScreen({ route, navigation }) {
       Alert.alert(
         "Succès",
         "Les paramètres ont été sauvegardés avec succès !",
-        [{ text: "OK", onPress: () => navigation.goBack() }]
+        [{ 
+          text: "OK", 
+          onPress: () => navigation.navigate("BattleLobbyScreen", { 
+            gameId: gameId,
+            code: code,
+            isCreator: isCreator,
+            objectList: objectList 
+          }) 
+        }]
       );
     } catch (e) {
       console.error("Erreur lors de la sauvegarde:", e);
@@ -191,6 +209,26 @@ export default function BattleSettingsScreen({ route, navigation }) {
           </View>
         </View>
 
+        {/* Liste d'objets */}
+        <View style={styles.settingCard}>
+          <View style={styles.settingHeader}>
+            <List size={20} color="#3B82F6" />
+            <Text style={styles.settingTitle}>Liste d'objets</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.modeSelector, !canEdit && styles.disabledButton]}
+            onPress={() => canEdit && setShowObjectListModal(true)}
+            disabled={!canEdit}
+          >
+            <Text style={styles.modeText}>
+              {objectLists.find(l => l.value === objectList)?.label || objectList}
+            </Text>
+            <Text style={styles.modeDescription}>
+              {objectLists.find(l => l.value === objectList)?.description || ""}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Mode de jeu */}
         <View style={styles.settingCard}>
           <View style={styles.settingHeader}>
@@ -263,6 +301,52 @@ export default function BattleSettingsScreen({ route, navigation }) {
         </TouchableOpacity>
       )}
 
+      {/* Modal de sélection de la liste d'objets */}
+      <Modal
+        visible={showObjectListModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowObjectListModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Choisir la liste d'objets</Text>
+            {objectLists.map((listOption) => (
+              <TouchableOpacity
+                key={listOption.value}
+                style={[
+                  styles.modeOption,
+                  objectList === listOption.value && styles.selectedModeOption
+                ]}
+                onPress={() => {
+                  setObjectList(listOption.value);
+                  setShowObjectListModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.modeOptionTitle,
+                  objectList === listOption.value && styles.selectedModeText
+                ]}>
+                  {listOption.label}
+                </Text>
+                <Text style={[
+                  styles.modeOptionDescription,
+                  objectList === listOption.value && styles.selectedModeText
+                ]}>
+                  {listOption.description}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowObjectListModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de sélection du mode */}
       <Modal
         visible={showModeModal}
@@ -278,24 +362,38 @@ export default function BattleSettingsScreen({ route, navigation }) {
                 key={modeOption.value}
                 style={[
                   styles.modeOption,
-                  mode === modeOption.value && styles.selectedModeOption
+                  mode === modeOption.value && styles.selectedModeOption,
+                  !modeOption.available && styles.disabledModeOption
                 ]}
                 onPress={() => {
-                  setMode(modeOption.value);
-                  setShowModeModal(false);
+                  if (modeOption.available) {
+                    setMode(modeOption.value);
+                    setShowModeModal(false);
+                  }
                 }}
+                disabled={!modeOption.available}
               >
-                <Text style={[
-                  styles.modeOptionTitle,
-                  mode === modeOption.value && styles.selectedModeText
-                ]}>
-                  {modeOption.label}
-                </Text>
+                <View style={styles.modeOptionHeader}>
+                  <Text style={[
+                    styles.modeOptionTitle,
+                    mode === modeOption.value && styles.selectedModeText,
+                    !modeOption.available && styles.disabledModeText
+                  ]}>
+                    {modeOption.label}
+                  </Text>
+                  {!modeOption.available && (
+                    <View style={styles.comingSoonBadge}>
+                      <Text style={styles.comingSoonText}>Bientôt</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={[
                   styles.modeOptionDescription,
-                  mode === modeOption.value && styles.selectedModeText
+                  mode === modeOption.value && styles.selectedModeText,
+                  !modeOption.available && styles.disabledModeText
                 ]}>
                   {modeOption.description}
+                  {!modeOption.available && " (En développement)"}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -562,6 +660,32 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: "#fff",
     fontSize: 16,
+    fontWeight: "600",
+  },
+  disabledModeOption: {
+    backgroundColor: "#F9FAFB",
+    borderColor: "#E5E7EB",
+    opacity: 0.7,
+  },
+  disabledModeText: {
+    color: "#9CA3AF",
+  },
+  modeOptionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  comingSoonBadge: {
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+  },
+  comingSoonText: {
+    color: "#92400E",
+    fontSize: 12,
     fontWeight: "600",
   },
 });
