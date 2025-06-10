@@ -61,16 +61,17 @@ export default function BattleScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
-        <View style={styles.headerBar}>
+        <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>BATTLE</Text>
-          <View style={styles.statsRow}>
+          <View style={styles.headerStats}>
             <View style={styles.statBadge}><Text style={styles.statText}>150 pts</Text></View>
-            <View style={[styles.statBadge, styles.coinBadge]}><Text style={styles.statText}>1280 C</Text></View>
+            <View style={styles.statBadge}><Text style={styles.statText}>1280<Text style={styles.coinIcon}> C</Text></Text></View>
           </View>
         </View>
 
         {/* Actions */}
-        <View style={styles.actionsRow}>
+        <View style={styles.actionsContainer}>
+          {/* Bouton Créer une partie */}
           <TouchableOpacity
             style={[styles.actionBtn, styles.createBtn]}
             onPress={createGame}
@@ -78,7 +79,9 @@ export default function BattleScreen({ navigation }) {
           >
             {isCreating ? <ActivityIndicator color="#fff"/> : <Text style={styles.createTxt}>Créer une partie</Text>}
           </TouchableOpacity>
-          <View style={styles.joinContainer}>
+          
+          {/* Section Rejoindre */}
+          <View style={styles.joinSection}>
             <TextInput
               style={styles.joinInput}
               placeholder="Code…"
@@ -126,7 +129,9 @@ export default function BattleScreen({ navigation }) {
         </View>
 
         {/* Suggested */}
+        <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Suggérées</Text>
+        </View>
         <View style={styles.suggestedRow}>
           {mockSuggested.map((item) => (
             <View key={item.id} style={styles.suggestedCard}>
@@ -143,7 +148,7 @@ export default function BattleScreen({ navigation }) {
         </View>
 
         {/* Friends in-game */}
-        <View style={styles.friendsHeader}>
+        <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Amis en jeu</Text>
           <TouchableOpacity><Text style={styles.inviteBtn}>Inviter un ami</Text></TouchableOpacity>
         </View>
@@ -165,24 +170,55 @@ export default function BattleScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   scrollContent: { paddingBottom: 100 },
-  headerBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   headerTitle: { fontSize: 20, fontWeight: '900' },
-  statsRow: { flexDirection: 'row' },
+  headerStats: { flexDirection: 'row' },
   statBadge: { backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginLeft: 8 },
-  coinBadge: { backgroundColor: '#FCD34D' },
   statText: { fontWeight: '600' },
-  actionsRow: { paddingHorizontal: 16, marginVertical: 16 },
-  actionBtn: { flex: 1, padding: 12, borderRadius: 24, alignItems: 'center', marginHorizontal: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  createBtn: { backgroundColor: '#F87171' },
-  joinContainer: { flexDirection: 'row', alignItems: 'center' },
-  joinInput: { flex: 1, backgroundColor: '#E5E7EB', borderRadius: 24, paddingHorizontal: 12, marginRight: 8, height: 40 },
-  joinBtn: { backgroundColor: '#FCD34D' },
+  coinIcon: { color: '#FBBF24' },
+  
+  // Styles modifiés pour la section actions
+  actionsContainer: { 
+    paddingHorizontal: 16, 
+    marginVertical: 16,
+    gap: 12  // Espacement entre le bouton créer et la section rejoindre
+  },
+  actionBtn: { 
+    padding: 12, 
+    borderRadius: 12, 
+    alignItems: 'center', 
+    shadowColor: '#000', 
+    shadowOpacity: 0.1, 
+    shadowRadius: 4, 
+    elevation: 2 
+  },
+  createBtn: { 
+    backgroundColor: '#F87171',
+    width: '100%'  // Prend toute la largeur
+  },
+  joinSection: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    gap: 8  // Espacement entre l'input et le bouton rejoindre
+  },
+  joinInput: { 
+    flex: 1, 
+    backgroundColor: '#E5E7EB', 
+    borderRadius: 12, 
+    padding: 12  // Même padding que actionBtn pour un alignement parfait
+  },
+  joinBtn: { 
+    backgroundColor: '#FCD34D',
+    paddingHorizontal: 20
+    // Pas de paddingVertical car actionBtn a déjà padding: 12
+  },
+  
   createTxt: { color: '#FFF', fontWeight: '600' },
   joinTxt: { color: '#000', fontWeight: '600' },
   searchSection: { paddingHorizontal: 16, marginBottom: 24 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
   searchRow: { flexDirection: 'row', alignItems: 'center' },
-  searchInput: { flex: 1, backgroundColor: '#E5E7EB', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 8 },
+  searchInput: { flex: 1, backgroundColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
   searchIcon: { position: 'absolute', right: 40 },
   filterIcon: { position: 'absolute', right: 16, color: '#F87171' },
   tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 },
@@ -196,7 +232,7 @@ const styles = StyleSheet.create({
   suggestedCount: { marginRight: 4, fontWeight: '600' },
   suggestedName: { fontWeight: '600', marginBottom: 8 },
   suggestedJoin: { backgroundColor: '#FFF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
-  friendsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
   inviteBtn: { color: '#F87171', fontWeight: '600' },
   friendsRow: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16 },
   friendItem: { alignItems: 'center' },

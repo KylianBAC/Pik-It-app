@@ -55,7 +55,7 @@ const SearchScreen = ({ navigation }) => {
   const renderHeader = () => (
     <>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>EXPLORER</Text>
         <View style={styles.scoreContainer}>
           <View style={styles.scoreBadge}><Text>150 pts</Text></View>
@@ -142,11 +142,11 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'space-between', padding: 8, backgroundColor: '#F3F4F6' },
   time: { fontWeight: 'bold' },
   statusIcons: { flexDirection: 'row', width: 60, justifyContent: 'space-between' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16 },
+  headerBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   headerTitle: { fontSize: 20, fontWeight: '900' },
   scoreContainer: { flexDirection: 'row' },
   scoreBadge: { backgroundColor: 'white', borderRadius: 16, paddingVertical: 4, paddingHorizontal: 8, marginLeft: 8 },
-  searchBarContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E5E7EB', borderRadius: 24, margin: 16, paddingHorizontal: 16 },
+  searchBarContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E5E7EB', borderRadius: 12, margin: 16, paddingHorizontal: 16 },
   searchInput: { flex: 1, height: 40 },
   searchIcon: { marginLeft: 8 },
   tagsContainer: { flexDirection: 'row', paddingHorizontal: 16 },

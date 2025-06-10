@@ -9,6 +9,7 @@ import {
   TextInput,
   Modal,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from "../api/auth";
 import { XCircle, Users, Lock, Clock, Settings } from "lucide-react-native"; // Add Settings here
 
@@ -191,7 +192,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Modified header section */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -327,7 +328,7 @@ export default function BattleLobbyScreen({ route, navigation }) {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

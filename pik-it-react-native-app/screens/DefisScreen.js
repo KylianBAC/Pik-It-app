@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   statBadge: { backgroundColor: 'white', borderRadius: 16, paddingVertical: 4, paddingHorizontal: 8, marginLeft: 8 },
   statText: { fontWeight: '600' },
   coinIcon: { color: '#FBBF24' },
-  tabsContainer: { flexDirection: 'row', backgroundColor: '#1F2937', borderRadius: 24, marginHorizontal: 16, overflow: 'hidden' },
+  tabsContainer: { flexDirection: 'row', backgroundColor: '#1F2937', borderRadius: 12, marginHorizontal: 16, overflow: 'hidden' },
   tabButton: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 8 },
   tabActive: { backgroundColor: 'white' },
   tabText: { fontWeight: '600', marginRight: 4 },
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   completionValue: { fontWeight: '600' },
   progressBarBg: { backgroundColor: '#E5E7EB', height: 8, borderRadius: 4, overflow: 'hidden' },
   progressBarFg: { height: 8, borderRadius: 4 },
-  rewardButton: { backgroundColor: '#EF4444', paddingVertical: 10, borderRadius: 24, alignItems: 'center' },
+  rewardButton: { backgroundColor: '#EF4444', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
   buttonDisabled: { backgroundColor: '#FCA5A5' },
   buttonText: { color: 'white', fontWeight: '600' },
 });

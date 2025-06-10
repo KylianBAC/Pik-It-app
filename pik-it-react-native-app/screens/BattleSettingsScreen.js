@@ -10,6 +10,7 @@ import {
   Switch,
   Alert,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from "../api/auth";
 import { Settings, Users, Target, Clock, Lock, Globe, Save, X } from "lucide-react-native";
 
@@ -117,7 +118,7 @@ export default function BattleSettingsScreen({ route, navigation }) {
   const canEdit = isCreator && gameInfo?.status === "waiting";
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -328,7 +329,7 @@ export default function BattleSettingsScreen({ route, navigation }) {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
