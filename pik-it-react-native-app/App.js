@@ -17,6 +17,8 @@ import BattleCameraScreen from './screens/BattleCameraScreen';
 import BattleResultScreen from './screens/BattleResultScreen';
 import SearchScreen from './screens/SearchScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import PhotoDetailScreen from './screens/PhotoDetailScreen';
+import PhotoGaleryScreen from './screens/PhotoGaleryScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
@@ -56,6 +58,8 @@ export default function App() {
                     <Stack.Screen name="BattleResultScreen" component={BattleResultScreen} />
                     <Stack.Screen name="SearchScreen" component={SearchScreen} />
                     <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+                    <Stack.Screen name="PhotoDetailScreen" component={PhotoDetailScreen} />
+                    <Stack.Screen name="PhotoGaleryScreen" component={PhotoGaleryScreen} />
                     <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
                   </>
                 )}

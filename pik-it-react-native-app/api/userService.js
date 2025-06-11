@@ -36,6 +36,30 @@ export async function getUserPhotos() {
   }
 }
 
+// Récupérer une photo spécifique de l'utilisateur
+export async function getUserPhoto(photoId) {
+  try {
+    const client = await apiClient();
+    const response = await client.get(`/photos/me/${photoId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Erreur lors de la récupération de la photo:', error);
+    throw error;
+  }
+}
+
+// Récupérer les détections d'une photo spécifique
+export async function getDetectionsByPhoto(photoId) {
+  try {
+    const client = await apiClient();
+    const response = await client.get(`/photos/detections/${photoId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Erreur lors de la récupération des détections:', error);
+    throw error;
+  }
+}
+
 // Récupérer les récompenses de l'utilisateur
 export async function getUserRewards(userId) {
   try {

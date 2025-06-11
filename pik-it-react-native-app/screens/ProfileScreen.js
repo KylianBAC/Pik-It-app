@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Settings, User, Edit, BookOpen, Home, Award, Search } from 'lucide-react-native';
+import { Settings, User, Edit, BookOpen, Home, Award, Search, ArrowRight } from 'lucide-react-native'; // Importe ArrowRight
 import NavBar from '../components/navbar';
 import { getUserProfile, getUserPhotos } from '../api/userService';
 
@@ -21,13 +21,13 @@ const ProfileScreen = ({ navigation }) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Récupérer le profil et les photos en parallèle
       const [profileData, photosData] = await Promise.all([
         getUserProfile(),
         getUserPhotos()
       ]);
-      
+
       setUserProfile(profileData);
       setUserPhotos(photosData);
     } catch (err) {
@@ -173,10 +173,12 @@ const ProfileScreen = ({ navigation }) => {
             </View>
             <Text style={styles.cardArrow}>→</Text>
           </View>
-          <View style={styles.card}>
+          {/* Carte Piks cliquable */}
+          <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('PhotoGaleryScreen')}>
             <Text style={styles.cardValue}>{piks}</Text>
             <Text style={styles.cardLabel}>Piks</Text>
-          </View>
+            <ArrowRight size={18} color="#EF4444" style={styles.clickableArrow} />
+          </TouchableOpacity>
           <View style={styles.card}>
             <Text style={styles.cardValue}>{titles}</Text>
             <Text style={styles.cardLabel}>Titres</Text>
@@ -190,7 +192,7 @@ const ProfileScreen = ({ navigation }) => {
             {Object.entries(stats).map(([key, value], i) => (
               <View key={i} style={styles.globalItem}>
                 <Text style={styles.globalLabel}>
-                  {key === 'money' ? 'Argent récolté' : 
+                  {key === 'money' ? 'Argent récolté' :
                    key === 'images' ? 'Images' :
                    key === 'picoins' ? 'Picoins' :
                    key === 'credits' ? 'Crédits' :
@@ -268,6 +270,9 @@ const styles = StyleSheet.create({
   cardLabelRow: { flexDirection: 'row', alignItems: 'center' },
   cardLabel: { fontSize: 14, color: '#4B5563', marginRight: 4 },
   cardArrow: { fontSize: 18, color: '#EF4444', marginTop: 4 },
+  clickableArrow: {
+    marginTop: 8, // Ajuste la marge pour positionner la flèche
+  },
   globalContainer: { paddingHorizontal: 16, marginBottom: 24 },
   globalTitle: { fontSize: 16, fontWeight: '500', marginBottom: 16 },
   globalGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
